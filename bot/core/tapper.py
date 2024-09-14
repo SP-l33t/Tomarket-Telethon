@@ -1,25 +1,29 @@
-import asyncio
 from datetime import datetime
-from random import randint, choices
-from time import time
-from urllib.parse import unquote, quote
 
 import aiohttp
+import asyncio
+import functools
+import os
+import random
+from time import time
+from urllib.parse import unquote, quote
+from aiocfscrape import CloudflareScraper
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
-from pyrogram import Client
-from pyrogram.errors import Unauthorized, UserDeactivated, AuthKeyUnregistered, FloodWait
-from pyrogram.raw.functions.messages import RequestAppWebView
-from pyrogram.raw.types import InputBotAppShortName
 
-from typing import Callable
-import functools
+from telethon import TelegramClient
+from telethon.errors import *
+from telethon.types import InputUser, InputBotAppShortName, InputPeerUser
+from telethon.functions import messages, contacts
 from tzlocal import get_localzone
-from bot.config import settings
-from bot.exceptions import InvalidSession
-from bot.utils import logger
+
 from .agents import generate_random_user_agent
-from .headers import headers
+from bot.config import settings
+from typing import Callable
+from bot.utils import logger, proxy_utils, config_utils
+from bot.exceptions import InvalidSession
+from .headers import headers, get_sec_ch_ua
+
 
 def error_handler(func: Callable):
     @functools.wraps(func)
@@ -30,57 +34,73 @@ def error_handler(func: Callable):
             await asyncio.sleep(1)
     return wrapper
 
+
 def convert_to_local_and_unix(iso_time):
     dt = datetime.fromisoformat(iso_time.replace('Z', '+00:00'))
     local_dt = dt.astimezone(get_localzone())
     unix_time = int(local_dt.timestamp())
     return unix_time
 
-class Tapper:
-    def __init__(self, tg_client: Client, proxy: str | None):
-        self.session_name = tg_client.name
-        self.tg_client = tg_client
-        self.proxy = proxy
 
-    async def get_tg_web_data(self) -> str:
+class Tapper:
+    def __init__(self, tg_client: TelegramClient):
+        self.tg_client = tg_client
+        self.session_name, _ = os.path.splitext(os.path.basename(tg_client.session.filename))
+        self.config = config_utils.get_session_config(self.session_name)
+        self.proxy = self.config.get('proxy', None)
+        self.headers = headers
+        self.headers['User-Agent'] = self.check_user_agent()
+        self.headers.update(**get_sec_ch_ua(self.headers.get('User-Agent', '')))
+
+    def check_user_agent(self):
+        user_agent = self.config.get('user_agent')
+        if not user_agent:
+            user_agent = generate_random_user_agent()
+            self.config['user_agent'] = user_agent
+            config_utils.update_config_file(self.session_name, self.config)
+
+        return user_agent
+
+    async def get_tg_web_data(self) -> [str | None, str | None]:
         
         if self.proxy:
             proxy = Proxy.from_str(self.proxy)
-            proxy_dict = dict(
-                scheme=proxy.protocol,
-                hostname=proxy.host,
-                port=proxy.port,
-                username=proxy.login,
-                password=proxy.password
-            )
+            proxy_dict = proxy_utils.to_telethon_proxy(proxy)
         else:
             proxy_dict = None
 
-        self.tg_client.proxy = proxy_dict
+        self.tg_client.set_proxy(proxy_dict)
 
         try:
-            if not self.tg_client.is_connected:
+            if not self.tg_client.is_connected():
                 try:
-                    await self.tg_client.connect()
-
-                except (Unauthorized, UserDeactivated, AuthKeyUnregistered):
+                    await self.tg_client.start()
+                except (UnauthorizedError, AuthKeyUnregisteredError):
                     raise InvalidSession(self.session_name)
+                except (UserDeactivatedError, UserDeactivatedBanError, PhoneNumberBannedError):
+                    raise InvalidSession(f"{self.session_name}: User is banned")
             
             while True:
                 try:
-                    peer = await self.tg_client.resolve_peer('Tomarket_ai_bot')
+                    resolve_result = await self.tg_client(contacts.ResolveUsernameRequest(username='Tomarket_ai_bot'))
+                    peer = InputPeerUser(user_id=resolve_result.peer.user_id,
+                                         access_hash=resolve_result.users[0].access_hash)
                     break
-                except FloodWait as fl:
-                    fls = fl.value
+                except FloodWaitError as fl:
+                    fls = fl.seconds
 
                     logger.warning(f"{self.session_name} | FloodWait {fl}")
                     logger.info(f"{self.session_name} | Sleep {fls}s")
                     await asyncio.sleep(fls + 3)
             
-            ref_id = choices([settings.REF_ID, "00005UEJ"], weights=[85, 15], k=1)[0]
-            web_view = await self.tg_client.invoke(RequestAppWebView(
+            ref_id = settings.REF_ID if random.randint(0, 100) <= 85 else "0000GbQY"
+
+            input_user = InputUser(user_id=resolve_result.peer.user_id, access_hash=resolve_result.users[0].access_hash)
+            input_bot_app = InputBotAppShortName(bot_id=input_user, short_name="app")
+
+            web_view = await self.tg_client(messages.RequestAppWebViewRequest(
                 peer=peer,
-                app=InputBotAppShortName(bot_id=peer, short_name="app"),
+                app=input_bot_app,
                 platform='android',
                 write_allowed=True,
                 start_param=ref_id
@@ -99,7 +119,7 @@ class Tapper:
 
             init_data = (f"user={user_data}&chat_instance={chat_instance}&chat_type={chat_type}&start_param={ref_id}&auth_date={auth_date}&hash={hash_value}")
             
-            if self.tg_client.is_connected:
+            if self.tg_client.is_connected():
                 await self.tg_client.disconnect()
 
             return ref_id, init_data
@@ -121,11 +141,15 @@ class Tapper:
         response = await self.make_request(http_client, "POST", "/user/login", json={"init_data": tg_web_data, "invite_code": ref_id})
         return response.get('data', {}).get('access_token', None)
 
-    @error_handler
-    async def check_proxy(self, http_client: aiohttp.ClientSession) -> None:
-        response = await self.make_request(http_client, 'GET', url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(5))
-        ip = response.get('origin')
-        logger.info(f"{self.session_name} | Proxy IP: {ip}")
+    async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: str) -> bool:
+        try:
+            response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(5))
+            ip = (await response.json()).get('origin')
+            logger.info(f"<light-yellow>{self.session_name}</light-yellow> | Proxy IP: {ip}")
+            return True
+        except Exception as error:
+            logger.error(f"<light-yellow>{self.session_name}</light-yellow> | Proxy: {proxy} | Error: {error}")
+            return False
 
     @error_handler
     async def get_balance(self, http_client):
@@ -190,20 +214,30 @@ class Tapper:
     async def run(self) -> None:
 
         if settings.USE_RANDOM_DELAY_IN_RUN:
-            random_delay = randint(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
-            logger.info(f"{self.tg_client.name} | Bot will start in <light-red>{random_delay}s</light-red>")
+            random_delay = random.randint(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
+            logger.info(f"{self.session_name} | Bot will start in <light-red>{random_delay}s</light-red>")
             await asyncio.sleep(delay=random_delay)
         
-        proxy_conn = ProxyConnector().from_url(self.proxy) if self.proxy else None
-        http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
+        proxy_conn = None
         if self.proxy:
-            await self.check_proxy(http_client=http_client)
+            proxy_conn = ProxyConnector().from_url(self.proxy)
+            http_client = CloudflareScraper(headers=self.headers, connector=proxy_conn)
+            p_type = proxy_conn._proxy_type
+            p_host = proxy_conn._proxy_host
+            p_port = proxy_conn._proxy_port
+            if not await self.check_proxy(http_client=http_client, proxy=f"{p_type}://{p_host}:{p_port}"):
+                return
+        else:
+            http_client = CloudflareScraper(headers=self.headers)
         
-        if settings.FAKE_USERAGENT:            
-            http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
-
         ref_id, init_data = await self.get_tg_web_data()
 
+        if not init_data:
+            if not http_client.closed:
+                await http_client.close()
+            if proxy_conn and not proxy_conn.closed:
+                proxy_conn.close()
+            return
         # ``
         # Наши переменные
         # ``
@@ -214,14 +248,11 @@ class Tapper:
         while True:
             try:
                 if http_client.closed:
-                    if proxy_conn:
-                        if not proxy_conn.closed:
-                            proxy_conn.close()
+                    if proxy_conn and not proxy_conn.closed:
+                        proxy_conn.close()
 
                     proxy_conn = ProxyConnector().from_url(self.proxy) if self.proxy else None
-                    http_client = aiohttp.ClientSession(headers=headers, connector=proxy_conn)
-                    if settings.FAKE_USERAGENT:            
-                        http_client.headers['User-Agent'] = generate_random_user_agent(device_type='android', browser_type='chrome')
+                    http_client = CloudflareScraper(headers=self.headers, connector=proxy_conn)
                 access_token = await self.login(http_client=http_client, tg_web_data=init_data, ref_id=ref_id)
                 if not access_token:
                     logger.info(f"{self.session_name} | Failed login")
@@ -246,20 +277,18 @@ class Tapper:
                 if time() > end_farming_dt:
                     claim_farming = await self.claim_farming(http_client=http_client)
                     if claim_farming and 'status' in claim_farming:
-                        if claim_farming.get('status') == 500:
+                        start_farming = None
+                        if claim_farming.get('status') in [0, 500]:
+                            if claim_farming.get('status') == 0:
+                                farm_points = claim_farming['data']['claim_this_time']
+                                logger.info(
+                                    f"{self.session_name} | Success claim farm. Reward: <light-red>{farm_points}</light-red> 🍅")
                             start_farming = await self.start_farming(http_client=http_client)
-                            if start_farming and 'status' in start_farming and start_farming['status'] in [0, 200]:
-                                logger.info(f"{self.session_name} | Farm started.. 🍅")
-                                end_farming_dt = start_farming['data']['end_at'] + 240
-                                logger.info(f"{self.session_name} | Next farming claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>")
-                        elif claim_farming.get('status') == 0:
-                            farm_points = claim_farming['data']['claim_this_time']
-                            logger.info(f"{self.session_name} | Success claim farm. Reward: <light-red>{farm_points}</light-red> 🍅")
-                            start_farming = await self.start_farming(http_client=http_client)
-                            if start_farming and 'status' in start_farming and start_farming['status'] in [0, 200]:
-                                logger.info(f"{self.session_name} | Farm started.. 🍅")
-                                end_farming_dt = start_farming['data']['end_at'] + 240
-                                logger.info(f"{self.session_name} | Next farming claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>")
+                        if start_farming and 'status' in start_farming and start_farming['status'] in [0, 200]:
+                            logger.info(f"{self.session_name} | Farm started.. 🍅")
+                            end_farming_dt = start_farming['data']['end_at'] + 240
+                            logger.info(
+                                f"{self.session_name} | Next farming claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>")
                     await asyncio.sleep(1.5)
 
                 if settings.AUTO_CLAIM_STARS and next_stars_check < time():
@@ -322,7 +351,7 @@ class Tapper:
                             if play_game and 'status' in play_game:
                                 if play_game.get('status') == 0:
                                     await asyncio.sleep(30)
-                                    claim_game = await self.claim_game(http_client=http_client, points=randint(settings.POINTS_COUNT[0], settings.POINTS_COUNT[1]))
+                                    claim_game = await self.claim_game(http_client=http_client, points=random.randint(settings.POINTS_COUNT[0], settings.POINTS_COUNT[1]))
                                     if claim_game and 'status' in claim_game:
                                         if claim_game['status'] == 500 and claim_game['message'] == 'game not start':
                                             continue
@@ -397,9 +426,9 @@ class Tapper:
                 await asyncio.sleep(600)
                 
 
-
-async def run_tapper(tg_client: Client, proxy: str | None):
+async def run_tapper(tg_client: TelegramClient):
     try:
-        await Tapper(tg_client=tg_client, proxy=proxy).run()
+        await Tapper(tg_client=tg_client).run()
     except InvalidSession:
-        logger.error(f"{tg_client.name} | Invalid Session")
+        session_name, _ = os.path.splitext(os.path.basename(tg_client.session.filename))
+        logger.error(f"{session_name} | Invalid Session")

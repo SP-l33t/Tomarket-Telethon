@@ -30,6 +30,8 @@ if not exist .env (
 
 echo Starting the bot...
 :loop
+git fetch
+git pull
 python main.py
 echo Restarting the program in 10 seconds...
 timeout /t 10 /nobreak >nul

@@ -3,6 +3,7 @@ import random
 # Created by Aero25x
 # https://github.com/Aero25x/random-user-agents.git
 
+
 def generate_random_user_agent(device_type='android', browser_type='chrome'):
     if not device_type:
         device_type = random.choice(['android', 'ios', 'windows', 'ubuntu'])

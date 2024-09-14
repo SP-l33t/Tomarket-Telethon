@@ -7,9 +7,8 @@ class Settings(BaseSettings):
     API_ID: int
     API_HASH: str
 
-    REF_ID: str = '00005UEJ'
+    REF_ID: str = '0000GbQY'
     
-    FAKE_USERAGENT: bool = True
     POINTS_COUNT: list[int] = [450, 600]
     AUTO_PLAY_GAME: bool = True
     AUTO_TASK: bool = True
@@ -22,6 +21,10 @@ class Settings(BaseSettings):
     RANDOM_DELAY_IN_RUN: list[int] = [0, 15]
 
     USE_PROXY_FROM_FILE: bool = False
+
+    DEVICE_PARAMS: bool = False
+
+    DEBUG_LOGGING: bool = False
 
 
 settings = Settings()

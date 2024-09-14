@@ -32,6 +32,8 @@ else
 fi
 while true
 do
+  git fetch
+  git pull
 	python3 main.py
 	echo Restarting the program in 10 seconds...
 	sleep 10

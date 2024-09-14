@@ -8,38 +8,39 @@
 
 ## Features
 
-|                               Feature                                | Supported |
-|:-------------------------------------------------------------------:|:---------:|
-|                           Multithreading                            |     ✅     |
-|                    Proxy binding to session                         |     ✅     |
-|                 Auto Referral of your accounts                      |     ✅     |
-|                    Automatic task completion                        |     ✅     |
-|                  Support for pyrogram .session                      |     ✅     |
-|                           Auto farming                              |     ✅     |
-|                    Automatic quest completion                       |     ✅     |
-|                      Auto Daily Reward                              |     ✅     |
-|                       Auto Claim Stars                              |     ✅     |
-|                       Auto Claim Combo                              |     ✅     |
+|            Feature             | Supported |
+|:------------------------------:|:---------:|
+|         Multithreading         |     ✅     |
+|    Proxy binding to session    |     ✅     |
+| Auto Referral of your accounts |     ✅     |
+|   Automatic task completion    |     ✅     |
+| Support for pyrogram .session  |     ✅     |
+|          Auto farming          |     ✅     |
+|   Automatic quest completion   |     ✅     |
+|       Auto Daily Reward        |     ✅     |
+|        Auto Claim Stars        |     ✅     |
+|        Auto Claim Combo        |     ✅     |
 |       Auto Rank Upgrade        |     ✅     |
-
+| Support for telethon .session  |     ✅     |
 
 ## [Settings](https://github.com/GravelFire/Tomarket/blob/main/.env-example/)
-|        Settings         |                                      Description                                       |
-|:-----------------------:|:--------------------------------------------------------------------------------------:|
-|  **API_ID**             |        Your Telegram API ID (integer)                                                  |
-|  **API_HASH**           |        Your Telegram API Hash (string)                                                 |
-|  **REF_ID**             |        Your referral id after startapp=                             |
-| **POINTS_COUNT**        | Number of points per game (e.g., [450, 600]) |
-|  **FAKE_USERAGENT**     |        Use a fake user agent for sessions (True / False)                               |
-|  **AUTO_PLAY_GAME**     |        Automatically play games (True / False)                                         |
-|  **AUTO_TASK**          |        Automatically complete tasks (True / False)                                     |
-|  **AUTO_DAILY_REWARD**  |        Automatically claim daily rewards (True / False)                                |
-|  **AUTO_CLAIM_STARS**  |        Automatically claim star rewards (True / False)                                 |
-|  **AUTO_CLAIM_COMBO**   |        Automatically claim combo rewards (True / False)                                |
-|    **AUTO_RANK_UPGRADE**    |                  Automatically upgrade rank (True / False)                   |
-| **USE_RANDOM_DELAY_IN_RUN** | Whether to use random delay at startup (True / False)                              |
-| **RANDOM_DELAY_IN_RUN** |        Random delay at startup (e.g. [0, 15])                                          |
-| **USE_PROXY_FROM_FILE** |        Whether to use a proxy from the `bot/config/proxies.txt` file (True / False)    |
+|          Settings           |                                        Description                                         |
+|:---------------------------:|:------------------------------------------------------------------------------------------:|
+|         **API_ID**          |                               Your Telegram API ID (integer)                               |
+|        **API_HASH**         |                              Your Telegram API Hash (string)                               |
+|         **REF_ID**          |                              Your referral id after startapp=                              |
+|      **POINTS_COUNT**       |                        Number of points per game (e.g., [450, 600])                        |
+|     **AUTO_PLAY_GAME**      |                          Automatically play games (True / False)                           |
+|        **AUTO_TASK**        |                        Automatically complete tasks (True / False)                         |
+|    **AUTO_DAILY_REWARD**    |                      Automatically claim daily rewards (True / False)                      |
+|    **AUTO_CLAIM_STARS**     |                      Automatically claim star rewards (True / False)                       |
+|    **AUTO_CLAIM_COMBO**     |                      Automatically claim combo rewards (True / False)                      |
+|    **AUTO_RANK_UPGRADE**    |                         Automatically upgrade rank (True / False)                          |
+| **USE_RANDOM_DELAY_IN_RUN** |                   Whether to use random delay at startup (True / False)                    |
+|   **RANDOM_DELAY_IN_RUN**   |                           Random delay at startup (e.g. [0, 15])                           |
+|   **USE_PROXY_FROM_FILE**   |        Whether to use a proxy from the `bot/config/proxies.txt` file (True / False)        |
+|      **DEVICE_PARAMS**      | Enter device settings to make the telegram session look more realistic  (True / **False**) |
+|      **DEBUG_LOGGING**      |            Whether to log error's tracebacks to /logs folder (True / **False**)            |
 
 ## Quick Start 📚
 
