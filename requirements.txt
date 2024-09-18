@@ -9,3 +9,4 @@ better-proxy==1.2.0
 pydantic-settings==2.4.0
 python-socks==2.5.1
 tzlocal==5.2
+fasteners
