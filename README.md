@@ -24,23 +24,24 @@
 | Support for telethon .session  |     ✅     |
 
 ## [Settings](https://github.com/GravelFire/Tomarket/blob/main/.env-example/)
-|          Settings           |                                        Description                                         |
-|:---------------------------:|:------------------------------------------------------------------------------------------:|
-|         **API_ID**          |                               Your Telegram API ID (integer)                               |
-|        **API_HASH**         |                              Your Telegram API Hash (string)                               |
-|         **REF_ID**          |                              Your referral id after startapp=                              |
-|      **POINTS_COUNT**       |                        Number of points per game (e.g., [450, 600])                        |
-|     **AUTO_PLAY_GAME**      |                          Automatically play games (True / False)                           |
-|        **AUTO_TASK**        |                        Automatically complete tasks (True / False)                         |
-|    **AUTO_DAILY_REWARD**    |                      Automatically claim daily rewards (True / False)                      |
-|    **AUTO_CLAIM_STARS**     |                      Automatically claim star rewards (True / False)                       |
-|    **AUTO_CLAIM_COMBO**     |                      Automatically claim combo rewards (True / False)                      |
-|    **AUTO_RANK_UPGRADE**    |                         Automatically upgrade rank (True / False)                          |
-| **USE_RANDOM_DELAY_IN_RUN** |                   Whether to use random delay at startup (True / False)                    |
-|   **RANDOM_DELAY_IN_RUN**   |                           Random delay at startup (e.g. [0, 15])                           |
-|   **USE_PROXY_FROM_FILE**   |        Whether to use a proxy from the `bot/config/proxies.txt` file (True / False)        |
-|      **DEVICE_PARAMS**      | Enter device settings to make the telegram session look more realistic  (True / **False**) |
-|      **DEBUG_LOGGING**      |            Whether to log error's tracebacks to /logs folder (True / **False**)            |
+|          Settings           |                                                                                                                  Description                                                                                                                  |
+|:---------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+|         **API_ID**          |                                                                                                        Your Telegram API ID (integer)                                                                                                         |
+|        **API_HASH**         |                                                                                                        Your Telegram API Hash (string)                                                                                                        |
+|   **GLOBAL_CONFIG_PATH**    | Specifies the global path for accounts_config, proxies, sessions. <br/>Specify an absolute path or use an environment variable (default environment variable: **TG_FARM**) <br/>If no environment variable exists, uses the script directory. |
+|         **REF_ID**          |                                                                                                       Your referral id after startapp=                                                                                                        |
+|      **POINTS_COUNT**       |                                                                                                 Number of points per game (e.g., [450, 600])                                                                                                  |
+|     **AUTO_PLAY_GAME**      |                                                                                                    Automatically play games (True / False)                                                                                                    |
+|        **AUTO_TASK**        |                                                                                                  Automatically complete tasks (True / False)                                                                                                  |
+|    **AUTO_DAILY_REWARD**    |                                                                                               Automatically claim daily rewards (True / False)                                                                                                |
+|    **AUTO_CLAIM_STARS**     |                                                                                                Automatically claim star rewards (True / False)                                                                                                |
+|    **AUTO_CLAIM_COMBO**     |                                                                                               Automatically claim combo rewards (True / False)                                                                                                |
+|    **AUTO_RANK_UPGRADE**    |                                                                                                   Automatically upgrade rank (True / False)                                                                                                   |
+| **USE_RANDOM_DELAY_IN_RUN** |                                                                                             Whether to use random delay at startup (True / False)                                                                                             |
+|   **RANDOM_DELAY_IN_RUN**   |                                                                                                    Random delay at startup (e.g. [0, 15])                                                                                                     |
+|   **USE_PROXY_FROM_FILE**   |                                                                                 Whether to use a proxy from the `bot/config/proxies.txt` file (True / False)                                                                                  |
+|      **DEVICE_PARAMS**      |                                                                          Enter device settings to make the telegram session look more realistic  (True / **False**)                                                                           |
+|      **DEBUG_LOGGING**      |                                                                                     Whether to log error's tracebacks to /logs folder (True / **False**)                                                                                      |
 
 ## Quick Start 📚
 

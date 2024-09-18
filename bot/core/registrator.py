@@ -1,13 +1,15 @@
+import os
 from better_proxy import Proxy
 from telethon import TelegramClient
 from bot.config import settings
-from bot.utils import logger, proxy_utils, config_utils
+from bot.utils import logger, proxy_utils, config_utils, CONFIG_PATH, PROXIES_PATH, SESSIONS_PATH
+
+
+API_ID = settings.API_ID
+API_HASH = settings.API_HASH
 
 
 async def register_sessions() -> None:
-    API_ID = settings.API_ID
-    API_HASH = settings.API_HASH
-
     if not API_ID or not API_HASH:
         raise ValueError("API_ID and API_HASH not found in the .env file.")
 
@@ -32,8 +34,7 @@ async def register_sessions() -> None:
                 'app_version': input('app_version: ').strip()
             }
         )
-
-    accounts_config = config_utils.read_config_file()
+    accounts_config = config_utils.read_config_file(CONFIG_PATH)
     accounts_data = {
         'api_id': API_ID,
         'api_hash': API_HASH,
@@ -42,7 +43,9 @@ async def register_sessions() -> None:
     proxy = None
 
     if settings.USE_PROXY_FROM_FILE:
-        proxies = proxy_utils.get_unused_proxies(accounts_config)
+        proxies = proxy_utils.get_unused_proxies(accounts_config, PROXIES_PATH)
+        if not proxies:
+            raise Exception('No unused proxies left')
         for prox in proxies:
             if await proxy_utils.check_proxy(prox):
                 proxy_str = prox
@@ -56,7 +59,7 @@ async def register_sessions() -> None:
 
     accounts_config[session_name] = accounts_data
     session = TelegramClient(
-        f"sessions/{session_file}",
+        os.path.join(SESSIONS_PATH, session_file),
         api_id=API_ID,
         api_hash=API_HASH,
         lang_code="en",
@@ -69,7 +72,7 @@ async def register_sessions() -> None:
     user_data = await session.get_me()
 
     if user_data:
-        config_utils.write_config_file(accounts_config)
+        config_utils.write_config_file(accounts_config, CONFIG_PATH)
         logger.success(
             f'Session added successfully @{user_data.username} | {user_data.first_name} {user_data.last_name}'
         )

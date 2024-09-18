@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import suppress
 
-from bot.utils.launcher import process
+from bot.core.launcher import process
 
 
 async def main():

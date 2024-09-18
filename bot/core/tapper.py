@@ -20,7 +20,7 @@ from tzlocal import get_localzone
 from .agents import generate_random_user_agent
 from bot.config import settings
 from typing import Callable
-from bot.utils import logger, proxy_utils, config_utils
+from bot.utils import logger, log_error, proxy_utils, config_utils, CONFIG_PATH
 from bot.exceptions import InvalidSession
 from .headers import headers, get_sec_ch_ua
 
@@ -46,18 +46,21 @@ class Tapper:
     def __init__(self, tg_client: TelegramClient):
         self.tg_client = tg_client
         self.session_name, _ = os.path.splitext(os.path.basename(tg_client.session.filename))
-        self.config = config_utils.get_session_config(self.session_name)
+        self.config = config_utils.get_session_config(self.session_name, CONFIG_PATH)
         self.proxy = self.config.get('proxy', None)
         self.headers = headers
         self.headers['User-Agent'] = self.check_user_agent()
         self.headers.update(**get_sec_ch_ua(self.headers.get('User-Agent', '')))
+
+    def log_message(self, message) -> str:
+        return f"<light-yellow>{self.session_name}</light-yellow> | {message}"
 
     def check_user_agent(self):
         user_agent = self.config.get('user_agent')
         if not user_agent:
             user_agent = generate_random_user_agent()
             self.config['user_agent'] = user_agent
-            config_utils.update_config_file(self.session_name, self.config)
+            config_utils.update_config_file(self.session_name, self.config, CONFIG_PATH)
 
         return user_agent
 
@@ -89,8 +92,8 @@ class Tapper:
                 except FloodWaitError as fl:
                     fls = fl.seconds
 
-                    logger.warning(f"{self.session_name} | FloodWait {fl}")
-                    logger.info(f"{self.session_name} | Sleep {fls}s")
+                    logger.warning(self.log_message(f"FloodWait {fl}"))
+                    logger.info(self.log_message(f"Sleep {fls}s"))
                     await asyncio.sleep(fls + 3)
             
             ref_id = settings.REF_ID if random.randint(0, 100) <= 85 else "0000GbQY"
@@ -125,7 +128,7 @@ class Tapper:
             return ref_id, init_data
 
         except Exception as error:
-            logger.error(f"{self.session_name} | Unknown error: {error}")
+            log_error(self.log_message(f"Unknown error: {error}"))
             await asyncio.sleep(delay=3)
             return None, None
 
@@ -145,10 +148,10 @@ class Tapper:
         try:
             response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(5))
             ip = (await response.json()).get('origin')
-            logger.info(f"<light-yellow>{self.session_name}</light-yellow> | Proxy IP: {ip}")
+            logger.info(self.log_message(f"Proxy IP: {ip}"))
             return True
         except Exception as error:
-            logger.error(f"<light-yellow>{self.session_name}</light-yellow> | Proxy: {proxy} | Error: {error}")
+            log_error(self.log_message(f"Proxy: {proxy} | Error: {error}"))
             return False
 
     @error_handler
@@ -215,7 +218,7 @@ class Tapper:
 
         if settings.USE_RANDOM_DELAY_IN_RUN:
             random_delay = random.randint(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
-            logger.info(f"{self.session_name} | Bot will start in <light-red>{random_delay}s</light-red>")
+            logger.info(self.log_message(f"Bot will start in <light-red>{random_delay}s</light-red>"))
             await asyncio.sleep(delay=random_delay)
         
         proxy_conn = None
@@ -255,24 +258,24 @@ class Tapper:
                     http_client = CloudflareScraper(headers=self.headers, connector=proxy_conn)
                 access_token = await self.login(http_client=http_client, tg_web_data=init_data, ref_id=ref_id)
                 if not access_token:
-                    logger.info(f"{self.session_name} | Failed login")
-                    logger.info(f"{self.session_name} | Sleep <light-red>300s</light-red>")
+                    logger.warning(self.log_message(f"Failed login"))
+                    logger.info(self.log_message(f"Sleep <light-red>300s</light-red>"))
                     await asyncio.sleep(delay=300)
                     continue
                 else:
-                    logger.info(f"{self.session_name} | <light-red>🍅 Login successful</light-red>")
+                    logger.info(self.log_message(f"<light-red>🍅 Login successful</light-red>"))
                     http_client.headers["Authorization"] = f"{access_token}"
                 await asyncio.sleep(delay=1)
 
                 balance = await self.get_balance(http_client=http_client)
                 available_balance = balance['data']['available_balance']
-                logger.info(f"{self.session_name} | Current balance: <light-red>{available_balance}</light-red>")
+                logger.info(self.log_message(f"Current balance: <light-red>{available_balance}</light-red>"))
 
                 if 'farming' in balance['data']:
                     end_farm_time = balance['data']['farming']['end_at']
                     if end_farm_time > time():
                         end_farming_dt = end_farm_time + 240
-                        logger.info(f"{self.session_name} | Farming in progress, next claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>")
+                        logger.info(self.log_message(f"Farming in progress, next claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>"))
 
                 if time() > end_farming_dt:
                     claim_farming = await self.claim_farming(http_client=http_client)
@@ -281,14 +284,14 @@ class Tapper:
                         if claim_farming.get('status') in [0, 500]:
                             if claim_farming.get('status') == 0:
                                 farm_points = claim_farming['data']['claim_this_time']
-                                logger.info(
-                                    f"{self.session_name} | Success claim farm. Reward: <light-red>{farm_points}</light-red> 🍅")
+                                logger.info(self.log_message(
+                                    f"Success claim farm. Reward: <light-red>{farm_points}</light-red> 🍅"))
                             start_farming = await self.start_farming(http_client=http_client)
                         if start_farming and 'status' in start_farming and start_farming['status'] in [0, 200]:
-                            logger.info(f"{self.session_name} | Farm started.. 🍅")
+                            logger.info(self.log_message(f"Farm started.. 🍅"))
                             end_farming_dt = start_farming['data']['end_at'] + 240
-                            logger.info(
-                                f"{self.session_name} | Next farming claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>")
+                            logger.info(self.log_message(
+                                f"Next farming claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>"))
                     await asyncio.sleep(1.5)
 
                 if settings.AUTO_CLAIM_STARS and next_stars_check < time():
@@ -298,13 +301,13 @@ class Tapper:
                         if get_stars and get_stars.get('status', -1) == 0 and data_stars:
                             
                             if data_stars.get('status') > 2:
-                                logger.info(f"{self.session_name} | Stars already claimed | Skipping....")
+                                logger.info(self.log_message(f"Stars already claimed | Skipping...."))
 
                             elif data_stars.get('status') < 3 and datetime.fromisoformat(data_stars.get('endTime')) > datetime.now():
                                 start_stars_claim = await self.start_stars_claim(http_client=http_client, data={'task_id': data_stars.get('taskId')})
                                 claim_stars = await self.claim_task(http_client=http_client, data={'task_id': data_stars.get('taskId')})
                                 if claim_stars is not None and claim_stars.get('status') == 0 and start_stars_claim is not None and start_stars_claim.get('status') == 0:
-                                    logger.info(f"{self.session_name} | Claimed stars | Stars: <light-red>+{start_stars_claim['data'].get('stars', 0)}</light-red>")
+                                    logger.info(self.log_message(f"Claimed stars | Stars: <light-red>+{start_stars_claim['data'].get('stars', 0)}</light-red>"))
                             
                             next_stars_check = int(datetime.fromisoformat(get_stars['data'].get('endTime')).timestamp())
 
@@ -316,14 +319,14 @@ class Tapper:
 
                     if combo_info and combo_info.get('status') == 0 and combo_info_data:
                         if combo_info_data.get('status') > 0:
-                            logger.info(f"{self.session_name} | Combo already claimed | Skipping....")
+                            logger.info(self.log_message(f"Combo already claimed | Skipping...."))
                         elif combo_info_data.get('status') == 0 and datetime.fromisoformat(
                                 combo_info_data.get('end')) > datetime.now():
                             claim_combo = await self.claim_task(http_client, data = { 'task_id': combo_info_data.get('taskId') })
 
                             if claim_combo is not None and claim_combo.get('status') == 0:
-                                logger.info(
-                                    f"{self.session_name} | Claimed combo | Points: <light-red>+{combo_info_data.get('score')}</light-red> | Combo code: <light-red>{combo_info_data.get('code')}</light-red>")
+                                logger.info(self.log_message(
+                                    f"Claimed combo | Points: <light-red>+{combo_info_data.get('score')}</light-red> | Combo code: <light-red>{combo_info_data.get('code')}</light-red>"))
                         
                         next_combo_check = int(datetime.fromisoformat(combo_info_data.get('end')).timestamp())
 
@@ -333,18 +336,18 @@ class Tapper:
                 if settings.AUTO_DAILY_REWARD:
                     claim_daily = await self.claim_daily(http_client=http_client)
                     if claim_daily and 'status' in claim_daily and claim_daily.get("status", 400) != 400:
-                        logger.info(f"{self.session_name} | Daily: <light-red>{claim_daily['data']['today_game']}</light-red> reward: <light-red>{claim_daily['data']['today_points']}</light-red>")
+                        logger.info(self.log_message(f"Daily: <light-red>{claim_daily['data']['today_game']}</light-red> reward: <light-red>{claim_daily['data']['today_points']}</light-red>"))
 
                 await asyncio.sleep(1.5)
 
                 if settings.AUTO_PLAY_GAME:
                     tickets = balance.get('data', {}).get('play_passes', 0)
 
-                    logger.info(f"{self.session_name} | Tickets: <light-red>{tickets}</light-red>")
+                    logger.info(self.log_message(f"Tickets: <light-red>{tickets}</light-red>"))
 
                     await asyncio.sleep(1.5)
                     if tickets > 0:
-                        logger.info(f"{self.session_name} | Start ticket games...")
+                        logger.info(self.log_message(f"Start ticket games..."))
                         games_points = 0
                         while tickets > 0:
                             play_game = await self.play_game(http_client=http_client)
@@ -360,10 +363,10 @@ class Tapper:
                                             tickets -= 1
                                             games_points += claim_game.get('data').get('points')
                                             await asyncio.sleep(1.5)
-                        logger.info(f"{self.session_name} | Games finish! Claimed points: <light-red>{games_points}</light-red>")
+                        logger.info(self.log_message(f"Games finish! Claimed points: <light-red>{games_points}</light-red>"))
 
                 if settings.AUTO_TASK:
-                    logger.info(f"{self.session_name} | Start checking tasks.")
+                    logger.info(self.log_message(f"Start checking tasks."))
                     tasks = await self.get_tasks(http_client=http_client)
                     tasks_list = []
                     if tasks and tasks.get("status", 500) == 0:
@@ -382,7 +385,7 @@ class Tapper:
                         wait_second = task.get('waitSecond', 0)
                         starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId']})
                         if starttask and starttask.get('data', 'Failed') == 'ok':
-                            logger.info(f"{self.session_name} | Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅")
+                            logger.info(self.log_message(f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
                             await asyncio.sleep(wait_second + 3)
                             await self.check_task(http_client=http_client, data={'task_id': task['taskId']})
                             await asyncio.sleep(3)
@@ -390,9 +393,9 @@ class Tapper:
                             if claim:
                                 if claim['status'] == 0:
                                     reward = task.get('score', 'unknown')
-                                    logger.info(f"{self.session_name} | Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅")
+                                    logger.info(self.log_message(f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
                                 else:
-                                    logger.info(f"{self.session_name} | Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅")
+                                    logger.info(self.log_message(f"Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅"))
                             await asyncio.sleep(2)
 
                 await asyncio.sleep(1.5)
@@ -400,17 +403,17 @@ class Tapper:
                 if settings.AUTO_RANK_UPGRADE:
                     rank_data = await self.get_rank_data(http_client)
                     unused_stars = rank_data.get('data', {}).get('unusedStars', 0)
-                    logger.info(f"{self.session_name} | Unused stars {unused_stars}")
+                    logger.info(self.log_message(f"Unused stars {unused_stars}"))
                     if unused_stars > 0:
                         upgrade_rank = await self.upgrade_rank(http_client=http_client, stars=unused_stars)
                         if upgrade_rank.get('status', 500) == 0:
-                            logger.info(f"{self.session_name} | Rank upgraded! 🍅")
+                            logger.info(self.log_message(f"Rank upgraded! 🍅"))
                         else:
-                            logger.info(
-                                f"{self.session_name} | Rank not upgraded. Reason: {upgrade_rank.get('message', 'Unknown error')} 🍅")
+                            logger.info(self.log_message(
+                                f"Rank not upgraded. Reason: {upgrade_rank.get('message', 'Unknown error')} 🍅"))
 
                 sleep_time = end_farming_dt - time()
-                logger.info(f'{self.session_name} | Sleep <light-red>{round(sleep_time / 60, 2)}m.</light-red>')
+                logger.info(self.log_message(f'Sleep <light-red>{round(sleep_time / 60, 2)}m.</light-red>'))
                 await asyncio.sleep(sleep_time)
                 await http_client.close()
                 if proxy_conn:
@@ -420,9 +423,9 @@ class Tapper:
                 raise error
 
             except Exception as error:
-                logger.error(f"{self.session_name} | Unknown error: {error}")
+                log_error(self.log_message(f"Unknown error: {error}"))
                 await asyncio.sleep(delay=3)
-                logger.info(f'{self.session_name} | Sleep <light-red>10m.</light-red>')
+                logger.info(self.log_message(f'Sleep <light-red>10m.</light-red>'))
                 await asyncio.sleep(600)
                 
 
@@ -431,4 +434,4 @@ async def run_tapper(tg_client: TelegramClient):
         await Tapper(tg_client=tg_client).run()
     except InvalidSession:
         session_name, _ = os.path.splitext(os.path.basename(tg_client.session.filename))
-        logger.error(f"{session_name} | Invalid Session")
+        logger.error(f"<light-yellow>{session_name}</light-yellow> | Invalid Session")

@@ -7,7 +7,6 @@ from better_proxy import Proxy
 from bot.config import settings
 from bot.utils import logger
 
-
 PROXY_TYPES = {
     'socks5': ProxyType.SOCKS5,
     'socks4': ProxyType.SOCKS4,
@@ -30,9 +29,9 @@ def to_telethon_proxy(proxy: Proxy):
     }
 
 
-def get_proxies(proxy_path: str = "bot/config/proxies.txt") -> list[str]:
-    """Reads proxoies from the proxy file and returns array of proxies.
-    If file doens't exist, creates the file
+def get_proxies(proxy_path: str) -> list[str]:
+    """Reads proxies from the proxy file and returns array of proxies.
+    If file doesn't exist, creates the file
 
      Args:
        proxy_path: Path to the proxies.txt file.
@@ -55,9 +54,9 @@ def get_proxies(proxy_path: str = "bot/config/proxies.txt") -> list[str]:
         return []
 
 
-def get_unused_proxies(accounts_config):
+def get_unused_proxies(accounts_config, proxy_path: str):
     used_proxies = list({v['proxy'] for v in accounts_config.values()})
-    all_proxies = get_proxies()
+    all_proxies = get_proxies(proxy_path)
     return [proxy for proxy in all_proxies if proxy not in used_proxies]
 
 
