@@ -126,7 +126,8 @@ class Tapper:
             
             if self.tg_client.is_connected():
                 await self.tg_client.disconnect()
-                self.lock.release()
+                if self.lock.acquired:
+                    self.lock.release()
 
             return ref_id, init_data
 
@@ -335,7 +336,6 @@ class Tapper:
 
                 await asyncio.sleep(1.5)
 
-
                 if settings.AUTO_DAILY_REWARD:
                     claim_daily = await self.claim_daily(http_client=http_client)
                     if claim_daily and 'status' in claim_daily and claim_daily.get("status", 400) != 400:
@@ -439,4 +439,5 @@ async def run_tapper(tg_client: TelegramClient):
     except InvalidSession as e:
         logger.error(runner.log_message(f"Invalid Session: {e}"))
     finally:
-        runner.lock.release()
+        if runner.lock.acquired:
+            runner.lock.release()
