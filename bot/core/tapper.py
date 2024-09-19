@@ -137,10 +137,10 @@ class Tapper:
             return None, None
 
     @error_handler
-    async def make_request(self, http_client, method, endpoint=None, url=None, **kwargs):
+    async def make_request(self, http_client: CloudflareScraper, method, endpoint=None, url=None, **kwargs):
         full_url = url or f"https://api-web.tomarket.ai/tomarket-game/v1{endpoint or ''}"
         response = await http_client.request(method, full_url, **kwargs)
-        
+
         return await response.json()
         
     @error_handler
@@ -183,7 +183,7 @@ class Tapper:
         return await self.make_request(http_client, "POST", "/game/claim", json={"game_id": "59bcd12e-04e2-404c-a172-311a0084587d", "points": points})
 
     @error_handler
-    async def start_task(self, http_client, data):
+    async def start_task(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/tasks/start", json=data)
 
     @error_handler
@@ -207,17 +207,21 @@ class Tapper:
         return await self.make_request(http_client, "POST", "/tasks/classmateStars", json=data)
 
     @error_handler
-    async def get_tasks(self, http_client):
-        return await self.make_request(http_client, "POST", "/tasks/list", json={'language_code': 'en'})
+    async def get_tasks(self, http_client, data):
+        return await self.make_request(http_client, "POST", "/tasks/list", json=data)
 
     @error_handler
-    async def get_rank_data(self, http_client):
-        return await self.make_request(http_client, "POST", "/rank/data")
+    async def get_rank_data(self, http_client,data):
+        return await self.make_request(http_client, "POST", "/rank/data", json=data)
 
     @error_handler
     async def upgrade_rank(self, http_client, stars: int):
         return await self.make_request(http_client, "POST", "/rank/upgrade", json={'stars': stars})
-    
+
+    @error_handler
+    async def create_rank(self, http_client):
+        return await self.make_request(http_client, "POST", "/rank/evalute") and await self.make_request(http_client, "POST", "/rank/create")
+
     async def run(self) -> None:
 
         if settings.USE_RANDOM_DELAY_IN_RUN:
@@ -370,7 +374,7 @@ class Tapper:
 
                 if settings.AUTO_TASK:
                     logger.info(self.log_message(f"Start checking tasks."))
-                    tasks = await self.get_tasks(http_client=http_client)
+                    tasks = await self.get_tasks(http_client=http_client, data={'language_code': 'en', 'init_data': init_data})
                     tasks_list = []
                     if tasks and tasks.get("status", 500) == 0:
                         for category, task_group in tasks["data"].items():
@@ -386,8 +390,10 @@ class Tapper:
                     
                     for task in tasks_list:
                         wait_second = task.get('waitSecond', 0)
-                        starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId']})
-                        if starttask and starttask.get('data', 'Failed') == 'ok':
+                        starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId'], 'init_data': init_data})
+                        task_data = starttask.get('data', {}) if starttask else None
+                        task_started = task_data == 'ok' or task_data.get('status') == 1 if task_data else False
+                        if task_started:
                             logger.info(self.log_message(f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
                             await asyncio.sleep(wait_second + 3)
                             await self.check_task(http_client=http_client, data={'task_id': task['taskId']})
@@ -403,8 +409,11 @@ class Tapper:
 
                 await asyncio.sleep(1.5)
 
+                if await self.create_rank(http_client=http_client):
+                    logger.info(f"{self.session_name} | Rank created! 🍅")
+
                 if settings.AUTO_RANK_UPGRADE:
-                    rank_data = await self.get_rank_data(http_client)
+                    rank_data = await self.get_rank_data(http_client, {'task_id': task['taskId'], 'init_data': init_data})
                     unused_stars = rank_data.get('data', {}).get('unusedStars', 0)
                     logger.info(self.log_message(f"Unused stars {unused_stars}"))
                     if unused_stars > 0:
