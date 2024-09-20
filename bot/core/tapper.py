@@ -150,7 +150,7 @@ class Tapper:
 
     async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: str) -> bool:
         try:
-            response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(5))
+            response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(10))
             ip = (await response.json()).get('origin')
             logger.info(self.log_message(f"Proxy IP: {ip}"))
             return True
