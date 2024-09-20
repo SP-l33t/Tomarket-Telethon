@@ -211,7 +211,7 @@ class Tapper:
         return await self.make_request(http_client, "POST", "/tasks/list", json=data)
 
     @error_handler
-    async def get_rank_data(self, http_client,data):
+    async def get_rank_data(self, http_client, data):
         return await self.make_request(http_client, "POST", "/rank/data", json=data)
 
     @error_handler
@@ -240,15 +240,7 @@ class Tapper:
                 return
         else:
             http_client = CloudflareScraper(headers=self.headers)
-        
-        ref_id, init_data = await self.get_tg_web_data()
 
-        if not init_data:
-            if not http_client.closed:
-                await http_client.close()
-            if proxy_conn and not proxy_conn.closed:
-                proxy_conn.close()
-            return
         # ``
         # Наши переменные
         # ``
@@ -257,6 +249,15 @@ class Tapper:
         next_stars_check = 0
         next_combo_check = 0
         while True:
+            ref_id, init_data = await self.get_tg_web_data()
+
+            if not init_data:
+                if not http_client.closed:
+                    await http_client.close()
+                if proxy_conn and not proxy_conn.closed:
+                    proxy_conn.close()
+                return
+
             try:
                 if http_client.closed:
                     if proxy_conn and not proxy_conn.closed:
@@ -410,7 +411,7 @@ class Tapper:
                 await asyncio.sleep(1.5)
 
                 if await self.create_rank(http_client=http_client):
-                    logger.info(f"{self.session_name} | Rank created! 🍅")
+                    logger.info(self.log_message(f"Rank created! 🍅"))
 
                 if settings.AUTO_RANK_UPGRADE:
                     rank_data = await self.get_rank_data(http_client, {'task_id': task['taskId'], 'init_data': init_data})

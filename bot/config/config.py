@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     AUTO_RANK_UPGRADE: bool = True
 
     USE_RANDOM_DELAY_IN_RUN: bool = True
-    RANDOM_DELAY_IN_RUN: list[int] = [0, 15]
+    RANDOM_DELAY_IN_RUN: list[int] = [0, 30]
 
     USE_PROXY_FROM_FILE: bool = False
 
