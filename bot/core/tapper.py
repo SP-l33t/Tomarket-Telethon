@@ -84,7 +84,7 @@ class Tapper:
                     raise InvalidSession(self.session_name)
                 except (UserDeactivatedError, UserDeactivatedBanError, PhoneNumberBannedError):
                     raise InvalidSession(f"{self.session_name}: User is banned")
-            
+
             while True:
                 try:
                     resolve_result = await self.tg_client(contacts.ResolveUsernameRequest(username='Tomarket_ai_bot'))
@@ -220,7 +220,11 @@ class Tapper:
 
     @error_handler
     async def create_rank(self, http_client):
-        return await self.make_request(http_client, "POST", "/rank/evalute") and await self.make_request(http_client, "POST", "/rank/create")
+        evalute = await self.make_request(http_client, "POST", "/rank/evalute")
+        if evalute and evalute.get('status', 200) != 404:
+            await self.make_request(http_client, "POST", "/rank/create")
+            return True
+        return False
 
     async def run(self) -> None:
 
