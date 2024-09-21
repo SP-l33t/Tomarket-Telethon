@@ -61,7 +61,7 @@ class Tapper:
         if not user_agent:
             user_agent = generate_random_user_agent()
             self.config['user_agent'] = user_agent
-            config_utils.update_config_file(self.session_name, self.config, CONFIG_PATH)
+            config_utils.update_session_config_in_file(self.session_name, self.config, CONFIG_PATH)
 
         return user_agent
 
