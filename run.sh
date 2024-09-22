@@ -1,5 +1,7 @@
 #!/bin/bash
 
+firstRun=true
+
 # Проверка на наличие папки venv
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
@@ -30,11 +32,19 @@ if [ ! -f ".env" ]; then
 else
 	echo "Skipping .env copying"
 fi
+
+git fetch
+git pull
+
 while true
 do
-  git fetch
-  git pull
-	python3 main.py
-	echo Restarting the program in 10 seconds...
-	sleep 10
+    if [ "$firstRun" = true ]; then
+        python3 main.py
+        firstRun=false
+    else
+        python3 main.py -a 1
+    fi
+
+    echo "Restarting the program in 10 seconds..."
+    sleep 10
 done

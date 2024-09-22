@@ -1,4 +1,7 @@
 @echo off
+title Tomarket
+set firstRun=true
+
 if not exist venv (
     echo Creating virtual environment...
     python -m venv venv
@@ -28,11 +31,17 @@ if not exist .env (
 	echo Skipping .env copying
 )
 
-echo Starting the bot...
-:loop
 git fetch
 git pull
-python main.py
+
+echo Starting the bot...
+:loop
+if "%firstRun%"=="true" (
+    python main.py
+    set firstRun=false
+) else (
+    python main.py -a 1
+)
 echo Restarting the program in 10 seconds...
 timeout /t 10 /nobreak >nul
 goto :loop
