@@ -72,69 +72,54 @@ class Tapper:
             proxy_dict = proxy_utils.to_telethon_proxy(proxy)
         else:
             proxy_dict = None
-
         self.tg_client.set_proxy(proxy_dict)
 
-        try:
-            if not self.tg_client.is_connected():
-                try:
-                    self.lock.acquire()
-                    await self.tg_client.start()
-                except (UnauthorizedError, AuthKeyUnregisteredError):
-                    raise InvalidSession(self.session_name)
-                except (UserDeactivatedError, UserDeactivatedBanError, PhoneNumberBannedError):
-                    raise InvalidSession(f"{self.session_name}: User is banned")
+        data = None, None
+        with self.lock:
+            async with self.tg_client as client:
+                while True:
+                    try:
+                        resolve_result = await client(contacts.ResolveUsernameRequest(username='Tomarket_ai_bot'))
+                        peer = InputPeerUser(user_id=resolve_result.peer.user_id,
+                                             access_hash=resolve_result.users[0].access_hash)
+                        break
+                    except FloodWaitError as fl:
+                        fls = fl.seconds
 
-            while True:
-                try:
-                    resolve_result = await self.tg_client(contacts.ResolveUsernameRequest(username='Tomarket_ai_bot'))
-                    peer = InputPeerUser(user_id=resolve_result.peer.user_id,
-                                         access_hash=resolve_result.users[0].access_hash)
-                    break
-                except FloodWaitError as fl:
-                    fls = fl.seconds
+                        logger.warning(self.log_message(f"FloodWait {fl}"))
+                        logger.info(self.log_message(f"Sleep {fls}s"))
+                        await asyncio.sleep(fls + 3)
 
-                    logger.warning(self.log_message(f"FloodWait {fl}"))
-                    logger.info(self.log_message(f"Sleep {fls}s"))
-                    await asyncio.sleep(fls + 3)
-            
-            ref_id = settings.REF_ID if random.randint(0, 100) <= 85 else "0000GbQY"
+                ref_id = settings.REF_ID if random.randint(0, 100) <= 85 else "0000GbQY"
 
-            input_user = InputUser(user_id=resolve_result.peer.user_id, access_hash=resolve_result.users[0].access_hash)
-            input_bot_app = InputBotAppShortName(bot_id=input_user, short_name="app")
+                input_user = InputUser(user_id=resolve_result.peer.user_id, access_hash=resolve_result.users[0].access_hash)
+                input_bot_app = InputBotAppShortName(bot_id=input_user, short_name="app")
 
-            web_view = await self.tg_client(messages.RequestAppWebViewRequest(
-                peer=peer,
-                app=input_bot_app,
-                platform='android',
-                write_allowed=True,
-                start_param=ref_id
-            ))
+                web_view = await self.tg_client(messages.RequestAppWebViewRequest(
+                    peer=peer,
+                    app=input_bot_app,
+                    platform='android',
+                    write_allowed=True,
+                    start_param=ref_id
+                ))
 
-            auth_url = web_view.url
-            tg_web_data = unquote(
-                string=unquote(string=auth_url.split('tgWebAppData=')[1].split('&tgWebAppVersion')[0]))
-            tg_web_data_parts = tg_web_data.split('&')
+                auth_url = web_view.url
+                tg_web_data = unquote(
+                    string=unquote(string=auth_url.split('tgWebAppData=')[1].split('&tgWebAppVersion')[0]))
+                tg_web_data_parts = tg_web_data.split('&')
 
-            user_data = quote(tg_web_data_parts[0].split('=')[1])
-            chat_instance = tg_web_data_parts[1].split('=')[1]
-            chat_type = tg_web_data_parts[2].split('=')[1]
-            auth_date = tg_web_data_parts[4].split('=')[1]
-            hash_value = tg_web_data_parts[5].split('=')[1]
+                user_data = quote(tg_web_data_parts[0].split('=')[1])
+                chat_instance = tg_web_data_parts[1].split('=')[1]
+                chat_type = tg_web_data_parts[2].split('=')[1]
+                auth_date = tg_web_data_parts[4].split('=')[1]
+                hash_value = tg_web_data_parts[5].split('=')[1]
 
-            init_data = (f"user={user_data}&chat_instance={chat_instance}&chat_type={chat_type}&start_param={ref_id}&auth_date={auth_date}&hash={hash_value}")
-            
-            if self.tg_client.is_connected():
-                await self.tg_client.disconnect()
-                if self.lock.acquired:
-                    self.lock.release()
+                init_data = (f"user={user_data}&chat_instance={chat_instance}&chat_type={chat_type}&start_param={ref_id}&auth_date={auth_date}&hash={hash_value}")
 
-            return ref_id, init_data
+                data = ref_id, init_data
 
-        except Exception as error:
-            log_error(self.log_message(f"Unknown error: {error}"))
-            await asyncio.sleep(delay=3)
-            return None, None
+        return data
+
 
     @error_handler
     async def make_request(self, http_client: CloudflareScraper, method, endpoint=None, url=None, **kwargs):
