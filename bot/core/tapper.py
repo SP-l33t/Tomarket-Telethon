@@ -53,6 +53,8 @@ class Tapper:
         self.headers['User-Agent'] = self.check_user_agent()
         self.headers.update(**get_sec_ch_ua(self.headers.get('User-Agent', '')))
 
+        self._webview_data = None
+
     def log_message(self, message) -> str:
         return f"<light-yellow>{self.session_name}</light-yellow> | {message}"
 
@@ -77,27 +79,27 @@ class Tapper:
         data = None, None
         with self.lock:
             async with self.tg_client as client:
-                while True:
-                    try:
-                        resolve_result = await client(contacts.ResolveUsernameRequest(username='Tomarket_ai_bot'))
-                        peer = InputPeerUser(user_id=resolve_result.peer.user_id,
-                                             access_hash=resolve_result.users[0].access_hash)
-                        break
-                    except FloodWaitError as fl:
-                        fls = fl.seconds
+                if not self._webview_data:
+                    while True:
+                        try:
+                            resolve_result = await client(contacts.ResolveUsernameRequest(username='Tomarket_ai_bot'))
+                            user = resolve_result.users[0]
+                            peer = InputPeerUser(user_id=user.id, access_hash=user.access_hash)
+                            input_user = InputUser(user_id=user.id, access_hash=user.access_hash)
+                            input_bot_app = InputBotAppShortName(bot_id=input_user, short_name="app")
+                            self._webview_data = {'peer': peer, 'app': input_bot_app}
+                            break
+                        except FloodWaitError as fl:
+                            fls = fl.seconds
 
-                        logger.warning(self.log_message(f"FloodWait {fl}"))
-                        logger.info(self.log_message(f"Sleep {fls}s"))
-                        await asyncio.sleep(fls + 3)
+                            logger.warning(self.log_message(f"FloodWait {fl}"))
+                            logger.info(self.log_message(f"Sleep {fls}s"))
+                            await asyncio.sleep(fls + 3)
 
                 ref_id = settings.REF_ID if random.randint(0, 100) <= 85 else "0000GbQY"
 
-                input_user = InputUser(user_id=resolve_result.peer.user_id, access_hash=resolve_result.users[0].access_hash)
-                input_bot_app = InputBotAppShortName(bot_id=input_user, short_name="app")
-
                 web_view = await client(messages.RequestAppWebViewRequest(
-                    peer=peer,
-                    app=input_bot_app,
+                    **self._webview_data,
                     platform='android',
                     write_allowed=True,
                     start_param=ref_id
@@ -106,16 +108,15 @@ class Tapper:
                 auth_url = web_view.url
                 tg_web_data = unquote(
                     string=unquote(string=auth_url.split('tgWebAppData=')[1].split('&tgWebAppVersion')[0]))
-                tg_web_data_parts = tg_web_data.split('&')
 
-                user_data = quote(tg_web_data_parts[0].split('=')[1])
-                chat_instance = tg_web_data_parts[1].split('=')[1]
-                chat_type = tg_web_data_parts[2].split('=')[1]
-                auth_date = tg_web_data_parts[4].split('=')[1]
-                hash_value = tg_web_data_parts[5].split('=')[1]
+                user_data = quote(re.findall(r'user=([^&]+)', tg_web_data)[0])
+                chat_instance = re.findall(r'chat_instance=([^&]+)', tg_web_data)[0]
+                chat_type = re.findall(r'chat_type=([^&]+)', tg_web_data)[0]
+                start_param = re.findall(r'start_param=([^&]+)', tg_web_data)[0]
+                auth_date = re.findall(r'auth_date=([^&]+)', tg_web_data)[0]
+                hash_value = re.findall(r'hash=([^&]+)', tg_web_data)[0]
 
                 init_data = (f"user={user_data}&chat_instance={chat_instance}&chat_type={chat_type}&start_param={ref_id}&auth_date={auth_date}&hash={hash_value}")
-
                 data = ref_id, init_data
 
         return data
@@ -205,10 +206,11 @@ class Tapper:
 
     @error_handler
     async def create_rank(self, http_client):
-        evalute = await self.make_request(http_client, "POST", "/rank/evalute")
-        if evalute and evalute.get('status', 200) != 404:
-            await self.make_request(http_client, "POST", "/rank/create")
-            return True
+        evaluate = await self.make_request(http_client, "POST", "/rank/evaluate")
+        if evaluate and evaluate.get('status', 200) != 404:
+            create_rank_resp = await self.make_request(http_client, "POST", "/rank/create")
+            if create_rank_resp.get('data', {}).get('isCreated', False) is True:
+                return True
         return False
 
     async def run(self) -> None:
