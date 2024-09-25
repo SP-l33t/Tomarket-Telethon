@@ -1,5 +1,4 @@
 @echo off
-title Tomarket
 set firstRun=true
 
 if not exist venv (
@@ -31,11 +30,10 @@ if not exist .env (
 	echo Skipping .env copying
 )
 
-git fetch
-git pull
-
 echo Starting the bot...
 :loop
+git fetch
+git pull
 if "%firstRun%"=="true" (
     python main.py
     set firstRun=false
