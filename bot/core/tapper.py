@@ -432,6 +432,7 @@ class Tapper:
                         unused_stars = rank_data.get('data', {}).get('unusedStars', 0)
                         logger.info(self.log_message(f"Unused stars {unused_stars}"))
                         if unused_stars > 0:
+                            await asyncio.sleep(random.randint(30, 63))
                             upgrade_rank = await self.upgrade_rank(http_client=http_client, stars=unused_stars)
                             if upgrade_rank.get('status', 500) == 0:
                                 logger.info(self.log_message(f"Rank upgraded! 🍅"))
