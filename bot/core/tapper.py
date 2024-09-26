@@ -49,7 +49,8 @@ class Tapper:
         self.session_name, _ = os.path.splitext(os.path.basename(tg_client.session.filename))
         self.config = config_utils.get_session_config(self.session_name, CONFIG_PATH)
         self.proxy = self.config.get('proxy', None)
-        self.lock = fasteners.InterProcessLock(os.path.join(os.path.dirname(CONFIG_PATH), 'lock_files',  f"{self.session_name}.lock"))
+        self.lock = fasteners.InterProcessLock(
+            os.path.join(os.path.dirname(CONFIG_PATH), 'lock_files', f"{self.session_name}.lock"))
         self.headers = headers
         self.headers['User-Agent'] = self.check_user_agent()
         self.headers.update(**get_sec_ch_ua(self.headers.get('User-Agent', '')))
@@ -239,7 +240,8 @@ class Tapper:
         next_combo_check = 0
         while True:
             proxy_conn = {'connector': ProxyConnector.from_url(self.proxy)} if self.proxy else {}
-            async with CloudflareScraper(headers=self.headers, timeout=aiohttp.ClientTimeout(60), **proxy_conn) as http_client:
+            async with CloudflareScraper(headers=self.headers, timeout=aiohttp.ClientTimeout(60),
+                                         **proxy_conn) as http_client:
                 if not await self.check_proxy(http_client=http_client):
                     logger.warning(self.log_message('Failed to connect to proxy server. Sleep 5 minutes.'))
                     await asyncio.sleep(300)
@@ -308,9 +310,8 @@ class Tapper:
                                         'task_id': data_stars.get('taskId')})
                                     claim_stars = await self.claim_task(http_client=http_client,
                                                                         data={'task_id': data_stars.get('taskId')})
-                                    if claim_stars is not None and claim_stars.get(
-                                            'status') == 0 and start_stars_claim is not None and start_stars_claim.get(
-                                            'status') == 0:
+                                    if claim_stars and claim_stars.get('status') == 0 and start_stars_claim and \
+                                            start_stars_claim.get('status') == 0:
                                         logger.info(self.log_message(
                                             f"Claimed stars | Stars: <light-red>+{start_stars_claim['data'].get('stars', 0)}</light-red>"))
 
@@ -385,15 +386,33 @@ class Tapper:
                         if tasks and tasks.get("status", 500) == 0:
                             for category, task_group in tasks["data"].items():
                                 for task in task_group:
-                                    if task.get('enable') and not task.get('invisible', False):
+                                    # TODO Temporary change to complete free TOMATO task
+                                    if task.get('enable') and (
+                                            not task.get('invisible', False) or task.get('action') == "free_tomato"):
+                                        # ________________________________________
+                                        if task.get('action') == "free_tomato" and (task.get('status') == 0 or 2):
+                                            print(task)
+                                            if task.get('status') == 2:
+                                                claim = await self.claim_task(http_client=http_client,
+                                                                              data={'task_id': task['taskId']})
+                                                reward = task.get('score', 'unknown')
+                                                logger.info(self.log_message(
+                                                    f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
+                                            else:
+                                                starttask = await self.start_task(http_client=http_client,
+                                                                                  data={'task_id': task['taskId'],
+                                                                                        'init_data': init_data})
+                                        # _______________________________________
+                                        if task.get('type') in ['wallet', 'mysterious', 'classmate', 'classmateInvite',
+                                                                'classmateInviteBack', 'charge_stars_season2']:
+                                            continue
                                         if task.get('startTime') and task.get('endTime'):
                                             task_start = convert_to_local_and_unix(task['startTime'])
                                             task_end = convert_to_local_and_unix(task['endTime'])
                                             if task_start <= time() <= task_end:
                                                 tasks_list.append(task)
-                                        elif task.get('type') not in ['wallet', 'mysterious', 'classmate',
-                                                                      'classmateInvite', 'classmateInviteBack']:
-                                            tasks_list.append(task)
+                                                continue
+                                        tasks_list.append(task)
 
                         for task in tasks_list:
                             wait_second = task.get('waitSecond', 0)
@@ -460,6 +479,3 @@ async def run_tapper(tg_client: TelegramClient):
         await runner.run()
     except InvalidSession as e:
         logger.error(runner.log_message(f"Invalid Session: {e}"))
-    finally:
-        if runner.lock.acquired:
-            runner.lock.release()
