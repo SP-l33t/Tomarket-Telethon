@@ -391,7 +391,6 @@ class Tapper:
                                             not task.get('invisible', False) or task.get('action') == "free_tomato"):
                                         # ________________________________________
                                         if task.get('action') == "free_tomato" and (task.get('status') == 0 or 2):
-                                            print(task)
                                             if task.get('status') == 2:
                                                 claim = await self.claim_task(http_client=http_client,
                                                                               data={'task_id': task['taskId']})
