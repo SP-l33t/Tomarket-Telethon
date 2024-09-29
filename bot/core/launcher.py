@@ -61,14 +61,14 @@ async def get_tg_clients() -> list[TelegramClient]:
             continue
 
         else:
-            working_proxy = await proxy_utils.get_working_proxy(accounts_config, session_proxy)
-            if not working_proxy and settings.USE_PROXY_FROM_FILE:
+            working_proxy = await proxy_utils.get_working_proxy(accounts_config, session_proxy) if session_proxy or settings.USE_PROXY_FROM_FILE else None
+            if not working_proxy and (settings.USE_PROXY_FROM_FILE or session_proxy):
                 logger.warning(f"{session_name} | Didn't find a working unused proxy for session | Skipping")
                 continue
             else:
                 if 'api_id' in client_params and 'api_hash' in client_params:
                     tg_clients.append(TelegramClient(**client_params))
-                    session_config['proxy'] = working_proxy if settings.USE_PROXY_FROM_FILE else None
+                    session_config['proxy'] = working_proxy
                     accounts_config[session_name] = session_config
                     config_utils.update_session_config_in_file(session_name, session_config, CONFIG_PATH)
                     continue
@@ -78,7 +78,7 @@ async def get_tg_clients() -> list[TelegramClient]:
                     tg_clients.append(TelegramClient(**client_params))
                     session_config.update(
                         {
-                            'proxy': working_proxy if settings.USE_PROXY_FROM_FILE else None,
+                            'proxy': working_proxy,
                             'api_id': API_ID,
                             'api_hash': API_HASH
                         })
