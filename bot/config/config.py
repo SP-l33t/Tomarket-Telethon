@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     RANDOM_DELAY_IN_RUN: list[int] = [0, 30]
 
     SESSIONS_PER_PROXY: int = 1
-    USE_PROXY_FROM_FILE: bool = False
+    USE_PROXY_FROM_FILE: bool = True
     USE_PROXY_CHAIN: bool = False
 
     DEVICE_PARAMS: bool = False
