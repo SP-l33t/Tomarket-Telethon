@@ -411,8 +411,8 @@ class Tapper:
                         if tasks and tasks.get("status", 500) == 0:
                             for category, task_group in tasks.get("data", {}).items():
                                 task_list = task_group if isinstance(task_group, list) else task_group.get("default", [])
-                                logger.info(
-                                    f"{self.session_name} | Checking tasks: <r>{category}</r> ({len(task_list)} tasks)")
+                                logger.info(self.log_message(
+                                    f"Checking tasks: <r>{category}</r> ({len(task_list)} tasks)"))
                                 for task in task_list:
                                     if (task.get('enable') and
                                             not task.get('invisible', False) and
@@ -432,8 +432,8 @@ class Tapper:
                             starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId']})
                             task_data = starttask.get('data', {}) if starttask else None
                             if task_data == 'ok' or task_data.get('status') == 1 if task_data else False:
-                                logger.info(
-                                    f"{self.session_name} | Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅")
+                                logger.info(self.log_message(
+                                    f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
                                 await asyncio.sleep(wait_second + 3)
                                 await self.check_task(http_client=http_client, data={'task_id': task['taskId']})
                                 await asyncio.sleep(3)
@@ -441,11 +441,11 @@ class Tapper:
                                 if claim:
                                     if claim['status'] == 0:
                                         reward = task.get('score', 'unknown')
-                                        logger.info(
-                                            f"{self.session_name} | Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅")
+                                        logger.info(self.log_message(
+                                            f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
                                     else:
-                                        logger.info(
-                                            f"{self.session_name} | Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅")
+                                        logger.info(self.log_message(
+                                            f"Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅"))
                                 await asyncio.sleep(2)
 
                     await asyncio.sleep(1.5)
