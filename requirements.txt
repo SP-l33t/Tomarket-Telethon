@@ -10,3 +10,4 @@ python-socks==2.5.1
 PySocks==1.7.1
 tzlocal==5.2
 fasteners
+ua_generator

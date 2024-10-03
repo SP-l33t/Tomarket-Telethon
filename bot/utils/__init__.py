@@ -1,5 +1,6 @@
 import os
 
+from .async_lock import AsyncInterProcessLock
 from .logger import logger, log_error
 from . import proxy_utils, config_utils
 from bot.config import settings
