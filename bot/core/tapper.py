@@ -155,7 +155,10 @@ class Tapper:
         return response.get('data', {}).get('access_token', None)
 
     async def check_proxy(self, http_client: aiohttp.ClientSession) -> bool:
-        proxy_conn = http_client._connector
+        proxy_conn = http_client.connector
+        if proxy_conn and not hasattr(proxy_conn, '_proxy_host'):
+            logger.info(self.log_message(f"Running Proxy-less"))
+            return True
         try:
             response = await http_client.get(url='https://ifconfig.me/ip', timeout=aiohttp.ClientTimeout(15))
             logger.info(self.log_message(f"Proxy IP: {await response.text()}"))
@@ -400,49 +403,37 @@ class Tapper:
                         logger.info(self.log_message(f"Start checking tasks."))
                         tasks = await self.get_tasks(http_client=http_client,
                                                      data={'language_code': 'en', 'init_data': init_data})
+                        current_time = time()
                         tasks_list = []
+                        excluded_types = ['wallet', 'mysterious', 'classmate', 'classmateInvite', 'classmateInviteBack',
+                                          'charge_stars_season2', 'invite_star_group']
+                        excluded_names = ['Buy Tomatos']
                         if tasks and tasks.get("status", 500) == 0:
-                            for category, task_group in tasks["data"].items():
-                                for task in task_group:
-                                    # TODO Temporary change to complete free TOMATO task
-                                    if task.get('enable') and (
-                                            not task.get('invisible', False) or task.get('action') == "free_tomato"):
-                                        # ________________________________________
-                                        if task.get('action') == "free_tomato" and (task.get('status') == 0 or 2):
-                                            if task.get('status') == 2:
-                                                claim = await self.claim_task(http_client=http_client,
-                                                                              data={'task_id': task['taskId']})
-                                                reward = task.get('score', 'unknown')
-                                                logger.info(self.log_message(
-                                                    f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
-                                            else:
-                                                starttask = await self.start_task(http_client=http_client,
-                                                                                  data={'task_id': task['taskId'],
-                                                                                        'init_data': init_data})
-                                        # _______________________________________
-                                        if task.get('type') in ['wallet', 'mysterious', 'classmate', 'classmateInvite',
-                                                                'classmateInviteBack', 'charge_stars_season2']:
-                                            continue
+                            for category, task_group in tasks.get("data", {}).items():
+                                task_list = task_group if isinstance(task_group, list) else task_group.get("default", [])
+                                logger.info(
+                                    f"{self.session_name} | Checking tasks: <r>{category}</r> ({len(task_list)} tasks)")
+                                for task in task_list:
+                                    if (task.get('enable') and
+                                            not task.get('invisible', False) and
+                                            task.get('type', '').lower() not in excluded_types and
+                                            task.get('name') not in excluded_names):
                                         if task.get('startTime') and task.get('endTime'):
                                             task_start = convert_to_local_and_unix(task['startTime'])
                                             task_end = convert_to_local_and_unix(task['endTime'])
-                                            if task_start <= time() <= task_end:
-                                                tasks_list.append(task)
-                                                continue
-                                        tasks_list.append(task)
+                                            if task_start <= current_time <= task_end:
+                                                if task.get('status') != 3:
+                                                    tasks_list.append(task)
+                                        elif task.get('status') != 3:
+                                            tasks_list.append(task)
 
                         for task in tasks_list:
                             wait_second = task.get('waitSecond', 0)
-                            starttask = await self.start_task(http_client=http_client,
-                                                              data={'task_id': task['taskId'], 'init_data': init_data})
+                            starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId']})
                             task_data = starttask.get('data', {}) if starttask else None
-                            task_code = starttask.get('code', 0) if starttask else None
-                            task_status = task_data.get('status') == 1 if not type(
-                                task_data) is str and task_data else False
-                            task_started = task_code != 400 and task_data == 'ok' or task_status
-                            if task_started:
-                                logger.info(self.log_message(
-                                    f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
+                            if task_data == 'ok' or task_data.get('status') == 1 if task_data else False:
+                                logger.info(
+                                    f"{self.session_name} | Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅")
                                 await asyncio.sleep(wait_second + 3)
                                 await self.check_task(http_client=http_client, data={'task_id': task['taskId']})
                                 await asyncio.sleep(3)
@@ -450,11 +441,11 @@ class Tapper:
                                 if claim:
                                     if claim['status'] == 0:
                                         reward = task.get('score', 'unknown')
-                                        logger.info(self.log_message(
-                                            f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
+                                        logger.info(
+                                            f"{self.session_name} | Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅")
                                     else:
-                                        logger.info(self.log_message(
-                                            f"Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅"))
+                                        logger.info(
+                                            f"{self.session_name} | Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅")
                                 await asyncio.sleep(2)
 
                     await asyncio.sleep(1.5)
