@@ -2,17 +2,16 @@ import aiohttp
 import asyncio
 import functools
 import json
-import random
 from aiocfscrape import CloudflareScraper
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
 from datetime import datetime
 from time import time
-from urllib.parse import unquote, quote, parse_qs
+from pytz import UTC
+from random import randint, uniform
+from urllib.parse import unquote, parse_qs
 
 from bot.utils.universal_telegram_client import UniversalTelegramClient
-
-from tzlocal import get_localzone
 
 from bot.config import settings
 from typing import Callable
@@ -34,8 +33,8 @@ def error_handler(func: Callable):
 
 def convert_to_local_and_unix(iso_time):
     dt = datetime.fromisoformat(iso_time.replace('Z', '+00:00'))
-    local_dt = dt.astimezone(get_localzone())
-    unix_time = int(local_dt.timestamp())
+    dt = UTC.localize(dt)
+    unix_time = int(dt.timestamp())
     return unix_time
 
 
@@ -179,17 +178,21 @@ class Tapper:
                 return True
         return False
 
+    async def add_tomato_to_first_name(self):
+        if '🍅' not in self.user_data.get('first_name'):
+            await self.tg_client.update_profile(first_name=f"{self.user_data.get('first_name')} 🍅")
+
     async def run(self) -> None:
 
         if settings.USE_RANDOM_DELAY_IN_RUN:
-            random_delay = random.uniform(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
+            random_delay = uniform(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
             logger.info(self.log_message(f"Bot will start in <light-red>{int(random_delay)}s</light-red>"))
             await asyncio.sleep(delay=random_delay)
 
         access_token_created_time = 0
         init_data = None
 
-        token_live_time = random.randint(3500, 3600)
+        token_live_time = randint(3500, 3600)
 
         end_farming_dt = 0
         tickets = 0
@@ -324,7 +327,7 @@ class Tapper:
                                     if play_game.get('status') == 0:
                                         await asyncio.sleep(30)
                                         claim_game = await self.claim_game(http_client=http_client,
-                                                                           points=random.randint(
+                                                                           points=randint(
                                                                                settings.POINTS_COUNT[0],
                                                                                settings.POINTS_COUNT[1]))
                                         if claim_game and 'status' in claim_game:
@@ -345,7 +348,7 @@ class Tapper:
                         current_time = time()
                         tasks_list = []
                         excluded_types = ['wallet', 'mysterious', 'classmate', 'classmateInvite', 'classmateInviteBack',
-                                          'charge_stars_season2', 'invite_star_group']
+                                          'charge_stars_season2', 'invite_star_group', 'chain_donate_free', 'new_package']
                         excluded_names = ['Buy Tomatos']
                         if tasks and tasks.get("status", 500) == 0:
                             for category, task_group in tasks.get("data", {}).items():
@@ -353,29 +356,40 @@ class Tapper:
                                 logger.info(self.log_message(
                                     f"Checking tasks: <r>{category}</r> ({len(task_list)} tasks)"))
                                 for task in task_list:
-                                    if (task.get('enable') and
-                                            not task.get('invisible', False) and
+                                    if (task.get('enable') and not task.get('invisible', False) and
                                             task.get('type', '').lower() not in excluded_types and
                                             task.get('name') not in excluded_names):
-                                        if task.get('startTime') and task.get('endTime'):
+                                        if task.get('type') == 'free_tomato' and task.get('status') != 3:
+                                            task_start = convert_to_local_and_unix(task['startTime']) - 86400
+                                            task_end = convert_to_local_and_unix(task['endTime']) - 86400
+                                            if task_start <= current_time <= task_end:
+                                                tasks_list.append(task)
+                                            continue
+                                        if task.get('startTime') and task.get('endTime') and task.get('status') != 3:
                                             task_start = convert_to_local_and_unix(task['startTime'])
                                             task_end = convert_to_local_and_unix(task['endTime'])
                                             if task_start <= current_time <= task_end:
-                                                if task.get('status') != 3:
-                                                    tasks_list.append(task)
+                                                tasks_list.append(task)
                                         elif task.get('status') != 3:
                                             tasks_list.append(task)
 
                         for task in tasks_list:
                             wait_second = task.get('waitSecond', 0)
-                            starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId']})
+                            starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId'],
+                                                                                             'init_data': init_data})
                             task_data = starttask.get('data', {}) if starttask else None
                             if task_data == 'ok' or task_data.get('status') == 1 if task_data else False:
                                 logger.info(self.log_message(
                                     f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
-                                await asyncio.sleep(wait_second + 3)
-                                await self.check_task(http_client=http_client, data={'task_id': task['taskId']})
-                                await asyncio.sleep(3)
+                                if task.get('type') == 'emoji':
+                                    await self.add_tomato_to_first_name()
+                                if task.get('needVerify', False):
+                                    await asyncio.sleep(wait_second + uniform(3, 5))
+                                    resp = await self.check_task(http_client=http_client,
+                                                                 data={'task_id': task['taskId'],
+                                                                       'init_data': init_data})
+                                    if resp.get('data', {}).get('status') != 2:
+                                        continue
                                 claim = await self.claim_task(http_client=http_client, data={'task_id': task['taskId']})
                                 if claim:
                                     if claim['status'] == 0:
@@ -384,7 +398,8 @@ class Tapper:
                                             f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
                                     else:
                                         logger.info(self.log_message(
-                                            f"Task <light-red>{task['name']}</light-red> not claimed. Reason: {claim.get('message', 'Unknown error')} 🍅"))
+                                            f"Task <light-red>{task['name']}</light-red> not claimed. Reason: "
+                                            f"{claim.get('message', 'Unknown error')} 🍅"))
                                 await asyncio.sleep(2)
 
                     await asyncio.sleep(1.5)
@@ -398,7 +413,7 @@ class Tapper:
                         unused_stars = rank_data.get('data', {}).get('unusedStars', 0)
                         logger.info(self.log_message(f"Unused stars {unused_stars}"))
                         if unused_stars > 0:
-                            await asyncio.sleep(random.randint(30, 63))
+                            await asyncio.sleep(randint(30, 63))
                             upgrade_rank = await self.upgrade_rank(http_client=http_client, stars=unused_stars)
                             if upgrade_rank.get('status', 500) == 0:
                                 logger.info(self.log_message(f"Rank upgraded! 🍅"))

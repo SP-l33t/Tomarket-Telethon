@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     REF_ID: str = '0000GbQY'
     
-    POINTS_COUNT: list[int] = [450, 600]
+    POINTS_COUNT: list[int] = [400, 500]
     AUTO_PLAY_GAME: bool = True
     AUTO_TASK: bool = True
     AUTO_DAILY_REWARD: bool = True
