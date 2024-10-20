@@ -1,4 +1,4 @@
-[![Static Badge](https://img.shields.io/badge/Telegram-Channel-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/+jJhUfsfFCn4zZDk0)      [![Static Badge](https://img.shields.io/badge/Telegram-Bot%20Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/Tomarket_ai_bot/app?startapp=00005UEJ)
+[![Static Badge](https://img.shields.io/badge/Telegram-Channel-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/+jJhUfsfFCn4zZDk0)      [![Static Badge](https://img.shields.io/badge/Telegram-Bot%20Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/Tomarket_ai_bot/app?startapp=0000GbQY)
 
 ## Recommendation before use
 
@@ -8,27 +8,33 @@
 
 ## Features
 
-|            Feature             | Supported |
-|:------------------------------:|:---------:|
-|         Multithreading         |     ✅     |
-|    Proxy binding to session    |     ✅     |
-| Auto Referral of your accounts |     ✅     |
-|   Automatic task completion    |     ✅     |
-| Support for pyrogram .session  |     ✅     |
-|          Auto farming          |     ✅     |
-|   Automatic quest completion   |     ✅     |
-|       Auto Daily Reward        |     ✅     |
-|        Auto Claim Stars        |     ✅     |
-|        Auto Claim Combo        |     ✅     |
-|       Auto Rank Upgrade        |     ✅     |
-| Support for telethon .session  |     ✅     |
+|                 Feature                 | Supported |
+|:---------------------------------------:|:---------:|
+|             Multithreading              |     ✅     |
+|        Proxy binding to session         |     ✅     |
+|     Auto Referral of your accounts      |     ✅     |
+|        Automatic task completion        |     ✅     |
+|      Support for pyrogram .session      |     ✅     |
+|              Auto farming               |     ✅     |
+|       Automatic quest completion        |     ✅     |
+|            Auto Daily Reward            |     ✅     |
+|            Auto Claim Stars             |     ✅     |
+|            Auto Claim Combo             |     ✅     |
+|            Auto Rank Upgrade            |     ✅     |
+| Supports telethon AND pyrogram .session |     ✅     |
 
-## [Settings](https://github.com/GravelFire/Tomarket/blob/main/.env-example/)
+_Script searches for session files in the following folders:_
+* /sessions
+* /sessions/pyrogram
+* /session/telethon
+
+## [Settings](https://github.com/SP-l33t/Tomarket-Telethon-Telethon/blob/main/.env-example/)
 |          Settings           |                                                                                                                  Description                                                                                                                  |
 |:---------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
 |         **API_ID**          |                                                                                                        Your Telegram API ID (integer)                                                                                                         |
 |        **API_HASH**         |                                                                                                        Your Telegram API Hash (string)                                                                                                        |
 |   **GLOBAL_CONFIG_PATH**    | Specifies the global path for accounts_config, proxies, sessions. <br/>Specify an absolute path or use an environment variable (default environment variable: **TG_FARM**) <br/>If no environment variable exists, uses the script directory. |
+|        **FIX_CERT**         |                                                                                           Try to fix  SSLCertVerificationError ( True / **False** )                                                                                           |
 |         **REF_ID**          |                                                                                                       Your referral id after startapp=                                                                                                        |
 |      **POINTS_COUNT**       |                                                                                                 Number of points per game (e.g., [450, 600])                                                                                                  |
 |     **AUTO_PLAY_GAME**      |                                                                                                    Automatically play games (True / False)                                                                                                    |
@@ -59,10 +65,10 @@ Before you begin, make sure you have the following installed:
 3. Record the API_ID and API_HASH provided after registering your application in the .env file.
 
 ## Installation
-You can download the [**repository**](https://github.com/GravelFire/Tomarket) by cloning it to your system and installing the necessary dependencies:
+You can download the [**repository**](https://github.com/SP-l33t/Tomarket-Telethon-Telethon) by cloning it to your system and installing the necessary dependencies:
 ```shell
-git clone https://github.com/GravelFire/Tomarket.git
-cd Tomarket
+git clone https://github.com/SP-l33t/Tomarket-Telethon-Telethon.git
+cd Tomarket-Telethon
 ```
 
 Then you can do automatic installation by typing:
@@ -89,9 +95,9 @@ python3 main.py
 
 You can also use arguments for quick start, for example:
 ```shell
-~/Tomarket >>> python3 main.py --action (1/2)
+~/Tomarket-Telethon >>> python3 main.py --action (1/2)
 # Or
-~/Tomarket >>> python3 main.py -a (1/2)
+~/Tomarket-Telethon >>> python3 main.py -a (1/2)
 
 # 1 - Run clicker
 # 2 - Creates a session
@@ -109,9 +115,9 @@ python main.py
 
 You can also use arguments for quick start, for example:
 ```shell
-~/Tomarket >>> python main.py --action (1/2)
+~/Tomarket-Telethon >>> python main.py --action (1/2)
 # Or
-~/Tomarket >>> python main.py -a (1/2)
+~/Tomarket-Telethon >>> python main.py -a (1/2)
 
 # 1 - Run clicker
 # 2 - Creates a session

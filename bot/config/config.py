@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     API_HASH: str
     GLOBAL_CONFIG_PATH: str = "TG_FARM"
 
+    FIX_CERT: bool = False
+
     REF_ID: str = '0000GbQY'
     
     POINTS_COUNT: list[int] = [450, 600]
