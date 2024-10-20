@@ -383,7 +383,7 @@ class Tapper:
                                     f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
                                 if task.get('type') == 'emoji':
                                     await self.add_tomato_to_first_name()
-                                if task.get('needVerify', False) and task_data.get('status') != 2:
+                                if task.get('needVerify', False) and (task_data == 'ok' or task_data.get('status') != 2):
                                     await asyncio.sleep(wait_second + uniform(3, 5))
                                     resp = await self.check_task(http_client=http_client,
                                                                  data={'task_id': task['taskId'],
