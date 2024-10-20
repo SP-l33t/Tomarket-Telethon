@@ -436,8 +436,11 @@ class Tapper:
                         await asyncio.sleep((uniform(1, 2)))
                         result_data = result.get('data', {}).get('results', [{}])[0]
                         if result and result_data:
-                            logger.success(self.log_message(f'Used free spin. Got <lc>{result_data.get("amount")} '
-                                                            f'{result_data.get("type")}</lc>'))
+                            logger.success(self.log_message(f'Used free spin. Got <lr>{result_data.get("amount")} '
+                                                            f'{result_data.get("type")}</lr>'))
+                    if spin_tickets.get('data', {}).get("ticket_spin_1", 0) > 0:
+                        logger.info(self.log_message(
+                            f"Amount of free spins: <lr>{spin_tickets.get('data', {}).get('ticket_spin_1', 0)}</lr>"))
                     while spin_tickets.get('data', {}).get("ticket_spin_1", 0) > 0:
                         await self.get_spin_assets(http_client=http_client,
                                                    data={'language_code': 'en', 'init_data': init_data})
@@ -446,8 +449,8 @@ class Tapper:
                         await asyncio.sleep((uniform(1, 2)))
                         result_data = result.get('data', {}).get('results', [{}])[0]
                         if result and result_data:
-                            logger.success(self.log_message(f'Used free spin. Got <lc>{result_data.get("amount")} '
-                                                            f'{result_data.get("type")}</lc>'))
+                            logger.success(self.log_message(f'Used free spin. Got <lr>{result_data.get("amount")} '
+                                                            f'{result_data.get("type")}</lr>'))
                         spin_tickets = await self.get_spin_tickets(http_client=http_client,
                                                                    data={'language_code': 'en', 'init_data': init_data})
                         await asyncio.sleep((uniform(1, 2)))
