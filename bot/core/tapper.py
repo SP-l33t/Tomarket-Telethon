@@ -59,7 +59,7 @@ class Tapper:
             proxy = Proxy.from_str(self.proxy)
             self.tg_client.set_proxy(proxy)
 
-        self.ref_id = None
+        self.ref_id = ""
         self.user_data = None
 
         self._webview_data = None
@@ -378,12 +378,12 @@ class Tapper:
                             starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId'],
                                                                                              'init_data': init_data})
                             task_data = starttask.get('data', {}) if starttask else None
-                            if task_data == 'ok' or task_data.get('status') == 1 if task_data else False:
+                            if task_data == 'ok' or task_data.get('status') in [1, 2]:
                                 logger.info(self.log_message(
                                     f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
                                 if task.get('type') == 'emoji':
                                     await self.add_tomato_to_first_name()
-                                if task.get('needVerify', False):
+                                if task.get('needVerify', False) and task_data.get('status') != 2:
                                     await asyncio.sleep(wait_second + uniform(3, 5))
                                     resp = await self.check_task(http_client=http_client,
                                                                  data={'task_id': task['taskId'],
