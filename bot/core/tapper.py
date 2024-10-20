@@ -162,6 +162,26 @@ class Tapper:
         return await self.make_request(http_client, "POST", "/tasks/list", json=data)
 
     @error_handler
+    async def get_spin_tickets(self, http_client: CloudflareScraper, data):
+        return await self.make_request(http_client, "POST", "/user/tickets", json=data)
+
+    @error_handler
+    async def get_spin_assets(self, http_client: CloudflareScraper, data):
+        return await self.make_request(http_client, "POST", "/spin/assets", json=data)
+
+    @error_handler
+    async def get_spin_free(self, http_client: CloudflareScraper, data):
+        return await self.make_request(http_client, "POST", "/spin/free", json=data)
+
+    @error_handler
+    async def spin_once(self, http_client: CloudflareScraper):
+        return await self.make_request(http_client, "POST", "/spin/once")
+
+    @error_handler
+    async def spin_raffle(self, http_client: CloudflareScraper, data):
+        return await self.make_request(http_client, "POST", "/spin/raffle", json=data)
+
+    @error_handler
     async def get_rank_data(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/rank/data", json=data)
 
@@ -403,6 +423,34 @@ class Tapper:
                                 await asyncio.sleep(2)
 
                     await asyncio.sleep(1.5)
+
+                    spin_tickets = await self.get_spin_tickets(http_client=http_client,
+                                                               data={'language_code': 'en', 'init_data': init_data})
+                    free_spin = await self.get_spin_free(http_client=http_client,
+                                                         data={'language_code': 'en', 'init_data': init_data})
+                    if free_spin.get('data', {}).get('is_free', False):
+                        await self.get_spin_assets(http_client=http_client,
+                                                   data={'language_code': 'en', 'init_data': init_data})
+                        await asyncio.sleep((uniform(1, 2)))
+                        result = await self.spin_once(http_client)
+                        await asyncio.sleep((uniform(1, 2)))
+                        result_data = result.get('data', {}).get('results', [{}])[0]
+                        if result and result_data:
+                            logger.success(self.log_message(f'Used free spin. Got <lc>{result_data.get("amount")} '
+                                                            f'{result_data.get("type")}</lc>'))
+                    while spin_tickets.get('data', {}).get("ticket_spin_1", 0) > 0:
+                        await self.get_spin_assets(http_client=http_client,
+                                                   data={'language_code': 'en', 'init_data': init_data})
+                        await asyncio.sleep((uniform(1, 2)))
+                        result = await self.spin_raffle(http_client, data={"category": "ticket_spin_1"})
+                        await asyncio.sleep((uniform(1, 2)))
+                        result_data = result.get('data', {}).get('results', [{}])[0]
+                        if result and result_data:
+                            logger.success(self.log_message(f'Used free spin. Got <lc>{result_data.get("amount")} '
+                                                            f'{result_data.get("type")}</lc>'))
+                        spin_tickets = await self.get_spin_tickets(http_client=http_client,
+                                                                   data={'language_code': 'en', 'init_data': init_data})
+                        await asyncio.sleep((uniform(1, 2)))
 
                     if await self.create_rank(http_client=http_client):
                         logger.info(self.log_message(f"Rank created! 🍅"))
