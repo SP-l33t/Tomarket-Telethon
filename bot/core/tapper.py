@@ -61,6 +61,7 @@ class Tapper:
 
         self.ref_id = ""
         self.user_data = None
+        self.wallet = session_config['ton_address']
 
         self._webview_data = None
 
@@ -146,10 +147,6 @@ class Tapper:
         return await self.make_request(http_client, "POST", "/tasks/claim", json=data)
 
     @error_handler
-    async def get_combo(self, http_client: CloudflareScraper):
-        return await self.make_request(http_client, "POST", "/tasks/hidden")
-
-    @error_handler
     async def get_stars(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/tasks/classmateTask")
 
@@ -198,6 +195,28 @@ class Tapper:
                 return True
         return False
 
+    async def wallet_task(self, http_client: CloudflareScraper):
+        resp = await self.make_request(http_client, "POST", "/tasks/walletTask")
+        return resp.get("data", {}).get("walletAddress", "")
+
+    async def link_wallet(self, http_client: CloudflareScraper):
+        payload = {"wallet_address": self.wallet}
+        return await self.make_request(http_client, "POST", "/tasks/address", json=payload)
+
+    async def get_puzzle_status(self, http_client: CloudflareScraper, data):
+        resp = await self.make_request(http_client, "POST", "/tasks/puzzle", json=data)
+        resp_data = resp.get('data', [{}])[0]
+        return resp_data.get("taskId") if resp_data.get("status") != 3 else None
+
+    async def puzzle_claim(self, http_client: CloudflareScraper, data):
+        return await self.make_request(http_client, "POST", "/tasks/puzzleClaim", json=data)
+
+    @staticmethod
+    async def get_combo():
+        async with aiohttp.request(method="GET", url="https://raw.githubusercontent.com/zuydd/database/refs/heads/main/tomarket.json") as resp:
+            if resp.status in range(200, 300):
+                return json.loads(await resp.text()).get('puzzle', {})
+
     async def add_tomato_to_first_name(self):
         if '🍅' not in self.user_data.get('first_name'):
             await self.tg_client.update_profile(first_name=f"{self.user_data.get('first_name')} 🍅")
@@ -217,7 +236,6 @@ class Tapper:
         end_farming_dt = 0
         tickets = 0
         next_stars_check = 0
-        next_combo_check = 0
 
         proxy_conn = {'connector': ProxyConnector.from_url(self.proxy)} if self.proxy else {}
         async with CloudflareScraper(headers=self.headers, timeout=aiohttp.ClientTimeout(60), **proxy_conn) as http_client:
@@ -252,8 +270,12 @@ class Tapper:
                     access_token_created_time = time()
 
                     balance = await self.get_balance(http_client=http_client)
+                    rank_data = await self.get_rank_data(http_client,
+                                                         {'language_code': 'en', 'init_data': init_data})
                     available_balance = balance['data']['available_balance']
-                    logger.info(self.log_message(f"Current balance: <light-red>{available_balance}</light-red>"))
+                    current_rank = rank_data.get('data', {}).get('currentRank', {}).get('name')
+                    logger.info(self.log_message(f"Current balance: <light-red>{available_balance}</light-red> | "
+                                                 f"Current Rank: <light-red>{current_rank}</light-red>"))
 
                     if 'farming' in balance['data']:
                         end_farm_time = balance['data']['farming']['end_at']
@@ -302,27 +324,7 @@ class Tapper:
                                 next_stars_check = int(
                                     datetime.fromisoformat(get_stars['data'].get('endTime')).timestamp())
 
-                    await asyncio.sleep(1.5)
-
-                    if settings.AUTO_CLAIM_COMBO and next_combo_check < time():
-                        combo_info = await self.get_combo(http_client)
-                        combo_info_data = combo_info.get('data', [])[0] if combo_info.get('data') else []
-
-                        if combo_info and combo_info.get('status') == 0 and combo_info_data:
-                            if combo_info_data.get('status') > 0:
-                                logger.info(self.log_message(f"Combo already claimed | Skipping...."))
-                            elif combo_info_data.get('status') == 0 and datetime.fromisoformat(
-                                    combo_info_data.get('end')) > datetime.now():
-                                claim_combo = await self.claim_task(http_client,
-                                                                    data={'task_id': combo_info_data.get('taskId')})
-
-                                if claim_combo is not None and claim_combo.get('status') == 0:
-                                    logger.info(self.log_message(
-                                        f"Claimed combo | Points: <light-red>+{combo_info_data.get('score')}</light-red> | Combo code: <light-red>{combo_info_data.get('code')}</light-red>"))
-
-                            next_combo_check = int(datetime.fromisoformat(combo_info_data.get('end')).timestamp())
-
-                    await asyncio.sleep(1.5)
+                    await asyncio.sleep(uniform(2, 4))
 
                     if settings.AUTO_DAILY_REWARD:
                         claim_daily = await self.claim_daily(http_client=http_client)
@@ -367,7 +369,7 @@ class Tapper:
                                                      data={'language_code': 'en', 'init_data': init_data})
                         current_time = time()
                         tasks_list = []
-                        excluded_types = ['wallet', 'mysterious', 'classmate', 'classmateInvite', 'classmateInviteBack',
+                        excluded_types = ['mysterious', 'classmate', 'classmateInvite', 'classmateInviteBack',
                                           'charge_stars_season2', 'invite_star_group', 'chain_donate_free', 'new_package']
                         excluded_names = ['Buy Tomatos']
                         if tasks and tasks.get("status", 500) == 0:
@@ -401,6 +403,17 @@ class Tapper:
                             if task_data == 'ok' or task_data.get('status') in [1, 2]:
                                 logger.info(self.log_message(
                                     f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
+                                if task.get('type') == 'wallet':
+                                    if not settings.PERFORM_WALLET_TASK:
+                                        continue
+                                    get_wallet = await self.wallet_task(http_client)
+                                    if not get_wallet:
+                                        await asyncio.sleep(uniform(10, 20))
+                                        wallet = await self.link_wallet(http_client)
+                                        if wallet.get("data") != "ok":
+                                            continue
+                                        if task_data.get('status') == 2:
+                                            await asyncio.sleep(wait_second + uniform(3, 5))
                                 if task.get('type') == 'emoji':
                                     await self.add_tomato_to_first_name()
                                 if task.get('needVerify', False) and (task_data == 'ok' or task_data.get('status') != 2):
@@ -414,13 +427,26 @@ class Tapper:
                                 if claim:
                                     if claim['status'] == 0:
                                         reward = task.get('score', 'unknown')
-                                        logger.info(self.log_message(
+                                        logger.success(self.log_message(
                                             f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
                                     else:
-                                        logger.info(self.log_message(
+                                        logger.warning(self.log_message(
                                             f"Task <light-red>{task['name']}</light-red> not claimed. Reason: "
                                             f"{claim.get('message', 'Unknown error')} 🍅"))
                                 await asyncio.sleep(2)
+
+                    await asyncio.sleep(1.5)
+
+                    if settings.AUTO_CLAIM_COMBO:
+                        combo_id = await self.get_puzzle_status(http_client,
+                                                                data={'language_code': 'en', 'init_data': init_data})
+                        combo = await self.get_combo()
+                        if combo and combo.get("task_id") == combo_id:
+                            await asyncio.sleep(uniform(3, 10))
+                            combo['code'] = combo['code'].replace(' ', '')
+                            claim_combo = await self.puzzle_claim(http_client, combo)
+                            if claim_combo.get("status") == 0 and 'incorrect' not in claim_combo.get('data', {}).get('message', ""):
+                                logger.success(self.log_message("Successfully claimed daily puzzle"))
 
                     await asyncio.sleep(1.5)
 
@@ -460,7 +486,7 @@ class Tapper:
 
                     if settings.AUTO_RANK_UPGRADE:
                         rank_data = await self.get_rank_data(http_client,
-                                                             {'task_id': task['taskId'], 'init_data': init_data})
+                                                             {'language_code': 'en', 'init_data': init_data})
                         unused_stars = rank_data.get('data', {}).get('unusedStars', 0)
                         logger.info(self.log_message(f"Unused stars {unused_stars}"))
                         if unused_stars > 0:

@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     AUTO_CLAIM_STARS: bool = True
     AUTO_CLAIM_COMBO: bool = True
     AUTO_RANK_UPGRADE: bool = True
+    PERFORM_WALLET_TASK: bool = False
 
     USE_RANDOM_DELAY_IN_RUN: bool = True
-    RANDOM_DELAY_IN_RUN: list[int] = [0, 30]
+    RANDOM_DELAY_IN_RUN: list[int] = [0, 60]
 
     SESSIONS_PER_PROXY: int = 1
     USE_PROXY_FROM_FILE: bool = True

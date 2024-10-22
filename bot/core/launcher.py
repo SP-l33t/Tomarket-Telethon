@@ -8,7 +8,7 @@ from bot.utils.universal_telegram_client import UniversalTelegramClient
 
 from bot.config import settings
 from bot.core.agents import generate_random_user_agent
-from bot.utils import logger, config_utils, proxy_utils, CONFIG_PATH, SESSIONS_PATH, PROXIES_PATH
+from bot.utils import logger, config_utils, proxy_utils, CONFIG_PATH, SESSIONS_PATH, PROXIES_PATH, ton
 from bot.core.tapper import run_tapper
 from bot.core.registrator import register_sessions
 
@@ -105,6 +105,8 @@ async def get_tg_clients() -> list[UniversalTelegramClient]:
                     client_params[key] = api_config[key]
 
         session_config['user_agent'] = session_config.get('user_agent', generate_random_user_agent())
+        if "ton_address" not in session_config or not session_config['ton_address']:
+            session_config['ton_address'] = ton.generate_wallet(CONFIG_PATH)
         api_config.update(api_id=client_params.get('api_id') or client_params.get('api').api_id,
                           api_hash=client_params.get('api_hash') or client_params.get('api').api_hash)
 
