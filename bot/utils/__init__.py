@@ -22,8 +22,8 @@ if settings.USE_PROXY_CHAIN:
     PROXY_CHAIN = path if GLOBAL_CONFIG_EXISTS and os.path.isfile(path) else None
 
 
-if not os.path.exists(path=SESSIONS_PATH):
-    os.mkdir(path=SESSIONS_PATH)
+if not os.path.exists(SESSIONS_PATH):
+    os.mkdir(SESSIONS_PATH)
 
 if settings.FIX_CERT:
     from certifi import where
