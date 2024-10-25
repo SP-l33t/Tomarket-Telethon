@@ -1,6 +1,5 @@
 import aiohttp
 import asyncio
-import functools
 import json
 from aiocfscrape import CloudflareScraper
 from aiohttp_proxy import ProxyConnector
@@ -14,21 +13,9 @@ from urllib.parse import unquote, parse_qs
 from bot.utils.universal_telegram_client import UniversalTelegramClient
 
 from bot.config import settings
-from typing import Callable
 from bot.utils import logger, log_error, config_utils, CONFIG_PATH, first_run
 from bot.exceptions import InvalidSession
 from .headers import headers, get_sec_ch_ua
-
-
-def error_handler(func: Callable):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        try:
-            return await func(*args, **kwargs)
-        except Exception as e:
-            await asyncio.sleep(1)
-
-    return wrapper
 
 
 def convert_to_local_and_unix(iso_time):
@@ -64,6 +51,7 @@ class Tapper:
         self.wallet = session_config['ton_address']
 
         self._webview_data = None
+        self.counter = 0
 
     def log_message(self, message) -> str:
         return f"<ly>{self.session_name}</ly> | {message}"
@@ -92,101 +80,78 @@ class Tapper:
             log_error(self.log_message(f"Proxy: {proxy_url} | Error: {type(error).__name__}"))
             return False
 
-    @error_handler
     async def make_request(self, http_client: CloudflareScraper, method, endpoint=None, url=None, **kwargs):
         full_url = url or f"https://api-web.tomarket.ai/tomarket-game/v1{endpoint or ''}"
         response = await http_client.request(method, full_url, **kwargs)
+        return await response.json() if 'json' in response.headers.get('Content-Type') else {}
 
-        return await response.json()
-
-    @error_handler
     async def login(self, http_client, tg_web_data: str) -> tuple[str, str]:
         response = await self.make_request(http_client, "POST", "/user/login",
                                            json={"init_data": tg_web_data, "invite_code": self.ref_id})
         return response.get('data', {}).get('access_token', None)
 
-    @error_handler
     async def get_balance(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/user/balance")
 
-    @error_handler
     async def claim_daily(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/daily/claim",
                                        json={"game_id": "fa873d13-d831-4d6f-8aee-9cff7a1d0db1"})
 
-    @error_handler
     async def start_farming(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/farm/start",
                                        json={"game_id": "53b22103-c7ff-413d-bc63-20f6fb806a07"})
 
-    @error_handler
     async def claim_farming(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/farm/claim",
                                        json={"game_id": "53b22103-c7ff-413d-bc63-20f6fb806a07"})
 
-    @error_handler
     async def play_game(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/game/play",
                                        json={"game_id": "59bcd12e-04e2-404c-a172-311a0084587d"})
 
-    @error_handler
     async def claim_game(self, http_client: CloudflareScraper, points=None):
         return await self.make_request(http_client, "POST", "/game/claim",
                                        json={"game_id": "59bcd12e-04e2-404c-a172-311a0084587d", "points": points})
 
-    @error_handler
     async def start_task(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/tasks/start", json=data)
 
-    @error_handler
     async def check_task(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/tasks/check", json=data)
 
-    @error_handler
     async def claim_task(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/tasks/claim", json=data)
 
-    @error_handler
     async def get_stars(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/tasks/classmateTask")
 
-    @error_handler
     async def start_stars_claim(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/tasks/classmateStars", json=data)
 
-    @error_handler
     async def get_tasks(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/tasks/list", json=data)
 
-    @error_handler
     async def get_spin_tickets(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/user/tickets", json=data)
 
-    @error_handler
     async def get_spin_assets(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/spin/assets", json=data)
 
-    @error_handler
     async def get_spin_free(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/spin/free", json=data)
 
-    @error_handler
     async def spin_once(self, http_client: CloudflareScraper):
         return await self.make_request(http_client, "POST", "/spin/once")
 
-    @error_handler
     async def spin_raffle(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/spin/raffle", json=data)
 
-    @error_handler
     async def get_rank_data(self, http_client: CloudflareScraper, data):
         return await self.make_request(http_client, "POST", "/rank/data", json=data)
 
-    @error_handler
     async def upgrade_rank(self, http_client: CloudflareScraper, stars: int):
         return await self.make_request(http_client, "POST", "/rank/upgrade", json={'stars': stars})
 
-    @error_handler
     async def create_rank(self, http_client: CloudflareScraper):
         evaluate = await self.make_request(http_client, "POST", "/rank/evaluate")
         if evaluate and evaluate.get('status', 200) != 404:
@@ -195,13 +160,16 @@ class Tapper:
                 return True
         return False
 
-    async def wallet_task(self, http_client: CloudflareScraper):
+    async def get_wallet(self, http_client: CloudflareScraper):
         resp = await self.make_request(http_client, "POST", "/tasks/walletTask")
         return resp.get("data", {}).get("walletAddress", "")
 
     async def link_wallet(self, http_client: CloudflareScraper):
         payload = {"wallet_address": self.wallet}
         return await self.make_request(http_client, "POST", "/tasks/address", json=payload)
+
+    async def delete_wallet(self, http_client: CloudflareScraper):
+        return await self.make_request(http_client, "POST", "/tasks/deleteAddress")
 
     async def get_puzzle_status(self, http_client: CloudflareScraper, data):
         resp = await self.make_request(http_client, "POST", "/tasks/puzzle", json=data)
@@ -225,7 +193,7 @@ class Tapper:
 
         if settings.USE_RANDOM_DELAY_IN_RUN:
             random_delay = uniform(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
-            logger.info(self.log_message(f"Bot will start in <light-red>{int(random_delay)}s</light-red>"))
+            logger.info(self.log_message(f"Bot will start in <lr>{int(random_delay)}s</lr>"))
             await asyncio.sleep(delay=random_delay)
 
         access_token_created_time = 0
@@ -256,14 +224,14 @@ class Tapper:
 
                     access_token = await self.login(http_client=http_client, tg_web_data=init_data)
                     if not access_token:
-                        logger.warning(self.log_message(f"Failed login"))
-                        logger.info(self.log_message(f"Sleep <light-red>300s</light-red>"))
+                        logger.warning(self.log_message(f"Login failed"))
+                        logger.info(self.log_message(f"Sleep <lr>300s</lr>"))
                         await asyncio.sleep(delay=300)
                         continue
                     else:
                         if self.tg_client.is_fist_run:
                             await first_run.append_recurring_session(self.session_name)
-                        logger.info(self.log_message(f"<light-red>🍅 Login successful</light-red>"))
+                        logger.info(self.log_message(f"<lr>🍅 Logged in successfully</lr>"))
                         http_client.headers["Authorization"] = f"{access_token}"
                     await asyncio.sleep(delay=1)
 
@@ -274,15 +242,15 @@ class Tapper:
                                                          {'language_code': 'en', 'init_data': init_data})
                     available_balance = balance['data']['available_balance']
                     current_rank = rank_data.get('data', {}).get('currentRank', {}).get('name')
-                    logger.info(self.log_message(f"Current balance: <light-red>{available_balance}</light-red> | "
-                                                 f"Current Rank: <light-red>{current_rank}</light-red>"))
+                    logger.info(self.log_message(f"Current balance: <lr>{available_balance}</lr> | "
+                                                 f"Current Rank: <lr>{current_rank}</lr>"))
 
                     if 'farming' in balance['data']:
                         end_farm_time = balance['data']['farming']['end_at']
                         if end_farm_time > time():
                             end_farming_dt = end_farm_time + 240
                             logger.info(self.log_message(
-                                f"Farming in progress, next claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>"))
+                                f"Farming in progress, next claim in <lr>{round((end_farming_dt - time()) / 60)}m.</lr>"))
 
                     if time() > end_farming_dt:
                         claim_farming = await self.claim_farming(http_client=http_client)
@@ -292,13 +260,13 @@ class Tapper:
                                 if claim_farming.get('status') == 0:
                                     farm_points = claim_farming['data']['claim_this_time']
                                     logger.info(self.log_message(
-                                        f"Success claim farm. Reward: <light-red>{farm_points}</light-red> 🍅"))
+                                        f"Success claim farm. Reward: <lr>{farm_points}</lr> 🍅"))
                                 start_farming = await self.start_farming(http_client=http_client)
                             if start_farming and 'status' in start_farming and start_farming['status'] in [0, 200]:
                                 logger.info(self.log_message(f"Farm started.. 🍅"))
-                                end_farming_dt = start_farming['data']['end_at'] + 240
+                                end_farming_dt = start_farming['data']['end_at']
                                 logger.info(self.log_message(
-                                    f"Next farming claim in <light-red>{round((end_farming_dt - time()) / 60)}m.</light-red>"))
+                                    f"Next farming claim in <lr>{round((end_farming_dt - time()) / 60)}m.</lr>"))
                         await asyncio.sleep(1.5)
 
                     if settings.AUTO_CLAIM_STARS and next_stars_check < time():
@@ -319,7 +287,7 @@ class Tapper:
                                     if claim_stars and claim_stars.get('status') == 0 and start_stars_claim and \
                                             start_stars_claim.get('status') == 0:
                                         logger.info(self.log_message(
-                                            f"Claimed stars | Stars: <light-red>+{start_stars_claim['data'].get('stars', 0)}</light-red>"))
+                                            f"Claimed stars | Stars: <lr>+{start_stars_claim['data'].get('stars', 0)}</lr>"))
 
                                 next_stars_check = int(
                                     datetime.fromisoformat(get_stars['data'].get('endTime')).timestamp())
@@ -330,14 +298,14 @@ class Tapper:
                         claim_daily = await self.claim_daily(http_client=http_client)
                         if claim_daily and 'status' in claim_daily and claim_daily.get("status", 400) != 400:
                             logger.info(self.log_message(
-                                f"Daily: <light-red>{claim_daily['data']['today_game']}</light-red> reward: <light-red>{claim_daily['data']['today_points']}</light-red>"))
+                                f"Daily: <lr>{claim_daily['data']['today_game']}</lr> reward: <lr>{claim_daily['data']['today_points']}</lr>"))
 
                     await asyncio.sleep(1.5)
 
                     if settings.AUTO_PLAY_GAME:
                         tickets = balance.get('data', {}).get('play_passes', 0)
 
-                        logger.info(self.log_message(f"Tickets: <light-red>{tickets}</light-red>"))
+                        logger.info(self.log_message(f"Tickets: <lr>{tickets}</lr>"))
 
                         await asyncio.sleep(1.5)
                         if tickets > 0:
@@ -361,7 +329,7 @@ class Tapper:
                                                 games_points += claim_game.get('data').get('points')
                                                 await asyncio.sleep(1.5)
                             logger.info(self.log_message(
-                                f"Games finish! Claimed points: <light-red>{games_points}</light-red>"))
+                                f"Games finish! Claimed points: <lr>{games_points}</lr>"))
 
                     if settings.AUTO_TASK:
                         logger.info(self.log_message(f"Start checking tasks."))
@@ -396,17 +364,22 @@ class Tapper:
                                             tasks_list.append(task)
 
                         for task in tasks_list:
+                            if task.get('type') == 'wallet' and not settings.PERFORM_WALLET_TASK:
+                                continue
+
                             wait_second = task.get('waitSecond', 0)
-                            starttask = await self.start_task(http_client=http_client, data={'task_id': task['taskId'],
-                                                                                             'init_data': init_data})
-                            task_data = starttask.get('data', {}) if starttask else None
+                            if not task.get('status', 0):
+                                starttask = await self.start_task(http_client=http_client,
+                                                                  data={'task_id': task['taskId'],
+                                                                        'init_data': init_data})
+                                task_data = starttask.get('data', {}) if starttask else None
+                            else:
+                                task_data = task
                             if task_data == 'ok' or task_data.get('status') in [1, 2]:
                                 logger.info(self.log_message(
-                                    f"Start task <light-red>{task['name']}.</light-red> Wait {wait_second}s 🍅"))
+                                    f"Start task <lr>{task['name']}.</lr> Wait {wait_second}s 🍅"))
                                 if task.get('type') == 'wallet':
-                                    if not settings.PERFORM_WALLET_TASK:
-                                        continue
-                                    get_wallet = await self.wallet_task(http_client)
+                                    get_wallet = await self.get_wallet(http_client)
                                     if not get_wallet:
                                         await asyncio.sleep(uniform(10, 20))
                                         wallet = await self.link_wallet(http_client)
@@ -416,7 +389,7 @@ class Tapper:
                                             await asyncio.sleep(wait_second + uniform(3, 5))
                                 if task.get('type') == 'emoji':
                                     await self.add_tomato_to_first_name()
-                                if task.get('needVerify', False) and (task_data == 'ok' or task_data.get('status') != 2):
+                                if task_data == 'ok' or task_data.get('status') not in [2, 3]:
                                     await asyncio.sleep(wait_second + uniform(3, 5))
                                     resp = await self.check_task(http_client=http_client,
                                                                  data={'task_id': task['taskId'],
@@ -428,14 +401,25 @@ class Tapper:
                                     if claim['status'] == 0:
                                         reward = task.get('score', 'unknown')
                                         logger.success(self.log_message(
-                                            f"Task <light-red>{task['name']}</light-red> claimed! Reward: {reward} 🍅"))
+                                            f"Task <lr>{task['name']}</lr> claimed! Reward: {reward} 🍅"))
                                     else:
                                         logger.warning(self.log_message(
-                                            f"Task <light-red>{task['name']}</light-red> not claimed. Reason: "
+                                            f"Task <lr>{task['name']}</lr> not claimed. Reason: "
                                             f"{claim.get('message', 'Unknown error')} 🍅"))
                                 await asyncio.sleep(2)
 
                     await asyncio.sleep(1.5)
+
+                    if settings.REPLACE_WALLET:
+                        current_wallet = await self.get_wallet(http_client)
+                        if not current_wallet or current_wallet != self.wallet:
+                            delete_wallet = await self.delete_wallet(http_client)
+                            if delete_wallet.get('data') == 'ok':
+                                logger.info(f'Removed linked wallet: {current_wallet}')
+                            await asyncio.sleep(uniform(10, 20))
+                            wallet = await self.link_wallet(http_client)
+                            if wallet.get('data') == 'ok':
+                                logger.info(f"Successfully linked new wallet {self.wallet}")
 
                     if settings.AUTO_CLAIM_COMBO:
                         combo_id = await self.get_puzzle_status(http_client,
@@ -445,7 +429,8 @@ class Tapper:
                             await asyncio.sleep(uniform(3, 10))
                             combo['code'] = combo['code'].replace(' ', '')
                             claim_combo = await self.puzzle_claim(http_client, combo)
-                            if claim_combo.get("status") == 0 and 'incorrect' not in claim_combo.get('data', {}).get('message', ""):
+                            if claim_combo.get("status") == 0 and \
+                                    'incorrect' not in claim_combo.get('data', {}).get('message', ""):
                                 logger.success(self.log_message("Successfully claimed daily puzzle"))
 
                     await asyncio.sleep(1.5)
@@ -498,8 +483,8 @@ class Tapper:
                                 logger.info(self.log_message(
                                     f"Rank not upgraded. Reason: {upgrade_rank.get('message', 'Unknown error')} 🍅"))
 
-                    sleep_time = end_farming_dt - time()
-                    logger.info(self.log_message(f'Sleep <light-red>{round(sleep_time / 60, 2)}m.</light-red>'))
+                    sleep_time = (end_farming_dt - time()) * uniform(1.0, 1.1)
+                    logger.info(self.log_message(f'Sleep <lr>{round(sleep_time / 60, 2)}m.</lr>'))
                     await asyncio.sleep(sleep_time)
 
                 except InvalidSession as error:
@@ -507,8 +492,7 @@ class Tapper:
 
                 except Exception as error:
                     log_error(self.log_message(f"Unknown error: {error}"))
-                    await asyncio.sleep(delay=3)
-                    logger.info(self.log_message(f'Sleep <light-red>10m.</light-red>'))
+                    logger.info(self.log_message('Sleep <lr>10m.</lr>'))
                     await asyncio.sleep(600)
 
 
