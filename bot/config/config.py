@@ -22,8 +22,9 @@ class Settings(BaseSettings):
     PERFORM_WALLET_TASK: bool = False
     REPLACE_WALLET: bool = False
 
-    USE_RANDOM_DELAY_IN_RUN: bool = True
-    RANDOM_DELAY_IN_RUN: list[int] = [0, 60]
+    ONLY_CHECK_AIRDROP: bool = False
+
+    SESSION_START_DELAY: int = 360
 
     SESSIONS_PER_PROXY: int = 1
     USE_PROXY_FROM_FILE: bool = True

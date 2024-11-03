@@ -1,3 +1,4 @@
+import aiofiles
 import aiohttp
 import asyncio
 import json
@@ -185,16 +186,17 @@ class Tapper:
             if resp.status in range(200, 300):
                 return json.loads(await resp.text()).get('puzzle', {})
 
+    async def check_airdrop(self, http_client: CloudflareScraper, data):
+        return await self.make_request(http_client, "POST", "/token/check", json=data)
+
     async def add_tomato_to_first_name(self):
         if '🍅' not in self.user_data.get('first_name'):
             await self.tg_client.update_profile(first_name=f"{self.user_data.get('first_name')} 🍅")
 
-    async def run(self) -> None:
-
-        if settings.USE_RANDOM_DELAY_IN_RUN:
-            random_delay = uniform(settings.RANDOM_DELAY_IN_RUN[0], settings.RANDOM_DELAY_IN_RUN[1])
-            logger.info(self.log_message(f"Bot will start in <lr>{int(random_delay)}s</lr>"))
-            await asyncio.sleep(delay=random_delay)
+    async def run(self):
+        random_delay = uniform(1, settings.SESSION_START_DELAY)
+        logger.info(self.log_message(f"Bot will start in <lr>{int(random_delay)}s</lr>"))
+        await asyncio.sleep(delay=random_delay)
 
         access_token_created_time = 0
         init_data = None
@@ -244,6 +246,22 @@ class Tapper:
                     current_rank = rank_data.get('data', {}).get('currentRank', {}).get('name')
                     logger.info(self.log_message(f"Current balance: <lr>{available_balance}</lr> | "
                                                  f"Current Rank: <lr>{current_rank}</lr>"))
+
+                    if settings.ONLY_CHECK_AIRDROP:
+                        airdrop_data = (await self.check_airdrop(http_client,
+                                                                 {'language_code': 'en', 'init_data': init_data,
+                                                                  'round': 'One'})).get('data', {})
+                        toma_drop = airdrop_data.get('tomaAirDrop', {}).get('amount', 0)
+                        if toma_drop:
+                            logger.success(self.log_message(
+                                f"Rank: <lr>{airdrop_data.get('rank')}</lr> | Airdrop amount <lr>{toma_drop}</lr> | "
+                                f"Is claimed: <lr>{airdrop_data.get('claimed')}</lr> | "
+                                f"Status: <lr>{airdrop_data.get('status')}</lr>"))
+                        else:
+                            logger.info(self.log_message(f"Account is eligible for airdrop: "
+                                                         f"Rank: <lr>{airdrop_data.get('rank')}</lr> | "
+                                                         f"Status: <lr>{airdrop_data.get('status')}</lr> "))
+                        return f"{self.session_name.lower()};{airdrop_data.get('rank')};{toma_drop};{airdrop_data.get('status')}\n"
 
                     if 'farming' in balance['data']:
                         end_farm_time = balance['data']['farming']['end_at']
@@ -338,7 +356,8 @@ class Tapper:
                         current_time = time()
                         tasks_list = []
                         excluded_types = ['mysterious', 'classmate', 'classmateInvite', 'classmateInviteBack',
-                                          'charge_stars_season2', 'invite_star_group', 'chain_donate_free', 'new_package']
+                                          'charge_stars_season2', 'invite_star_group', 'chain_donate_free',
+                                          'new_package', 'medal_donate']
                         excluded_names = ['Buy Tomatos']
                         if tasks and tasks.get("status", 500) == 0:
                             for category, task_group in tasks.get("data", {}).items():
@@ -425,6 +444,7 @@ class Tapper:
                         combo_id = await self.get_puzzle_status(http_client,
                                                                 data={'language_code': 'en', 'init_data': init_data})
                         combo = await self.get_combo()
+                        # combo = {"task_id": 2024, "code": "1,9,11"}
                         if combo and combo.get("task_id") == combo_id:
                             await asyncio.sleep(uniform(3, 10))
                             combo['code'] = combo['code'].replace(' ', '')
@@ -496,9 +516,23 @@ class Tapper:
                     await asyncio.sleep(600)
 
 
+async def not_recorded(session_name: str):
+    async with aiofiles.open('airdrop.csv', mode='a+') as file:
+        await file.seek(0)
+        lines = await file.readlines()
+    return session_name.lower() not in [line.strip() for line in lines]
+
+
+async def append_airdrop_info(data: str):
+    async with aiofiles.open('airdrop.csv', mode='a+') as file:
+        await file.writelines(data)
+
+
 async def run_tapper(tg_client: UniversalTelegramClient):
     runner = Tapper(tg_client=tg_client)
     try:
-        await runner.run()
+        result = await runner.run()
+        if await not_recorded(runner.session_name):
+            await append_airdrop_info(result)
     except InvalidSession as e:
         logger.error(runner.log_message(f"Invalid Session: {e}"))
