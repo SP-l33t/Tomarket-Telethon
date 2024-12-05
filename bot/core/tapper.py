@@ -69,7 +69,7 @@ class Tapper:
         tg_web_data = unquote(webview_url.split('tgWebAppData=')[1].split('&tgWebAppVersion')[0])
         query_params = parse_qs(tg_web_data)
         self.user_data = json.loads(query_params.get('user', [''])[0])
-        self.ref_id = query_params.get('start_param', [''])[0]
+        self.ref_id = (query_params.get('start_param', [''])[0]).removeprefix('r-').removesuffix("--p-_treasure")
 
         return tg_web_data
 
@@ -98,7 +98,8 @@ class Tapper:
     async def make_request(self, http_client: CloudflareScraper, method, url=None, **kwargs):
         response = await http_client.request(method, url, **kwargs)
         if response.status in range(200, 300):
-            return await response.json() if 'json' in response.content_type else await response.text()
+            resp = await response.json() if 'json' in response.content_type else await response.text()
+            return resp
         else:
             error_json = await response.json() if 'json' in response.content_type else {}
             error_text = f"Error: {error_json}" if error_json else ""
@@ -276,6 +277,27 @@ class Tapper:
     async def launchpad_start_auto_farm(self, http_client, data):
         return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/launchpad/startAutoFarm", json=data)
 
+    async def query_treasure_pool_balance(self, http_client, data):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/queryTreasureBoxTomaPoolBalance", json=data)
+
+    async def get_token_balance(self, http_client, data):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/token/balance", json=data)
+
+    async def query_treasure_box_balance(self, http_client, data):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/queryTreasureBoxBalance", json=data)
+
+    async def get_treasure_box_history(self, http_client, data):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/treasureBoxHistory", json=data)
+
+    async def is_treasure_box_open(self, http_client, data):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/isTreasureBoxOpen", json=data)
+
+    async def query_inviter_info(self, http_client):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/queryInviterInfo")
+
+    async def open_treasure_box(self, http_client):
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/openTreasureBox")
+
     async def run(self):
         random_delay = uniform(1, settings.SESSION_START_DELAY)
         logger.info(self.log_message(f"Bot will start in <lr>{int(random_delay)}s</lr>"))
@@ -326,8 +348,21 @@ class Tapper:
                                                          {'language_code': 'en', 'init_data': init_data})
                     available_balance = balance.get('data', {}).get('available_balance')
                     current_rank = rank_data.get('data', {}).get('currentRank', {}).get('name')
+                    token_balance = await self.get_token_balance(http_client, {'language_code': 'en', 'init_data': init_data})
                     logger.info(self.log_message(f"Current balance: <lr>{available_balance}</lr> | "
-                                                 f"Current Rank: <lr>{current_rank}</lr>"))
+                                                 f"Current Rank: <lr>{current_rank}</lr> | "
+                                                 f"Token Balance: <ly>{token_balance.get('data', {}).get('total', 0)}</ly>"))
+
+                    await self.query_treasure_box_balance(http_client, {'language_code': 'en', 'init_data': init_data})
+                    await self.get_treasure_box_history(http_client, {'language_code': 'en', 'init_data': init_data})
+                    tb_open = (await self.is_treasure_box_open(http_client, {'language_code': 'en', 'init_data': init_data})).get('data', {}).get('open_status', 1)
+                    if not tb_open:
+                        inviter = await self.query_inviter_info(http_client)
+                        if inviter.get('data', {}).get('tel_firstname'):
+                            box_loot = (await self.open_treasure_box(http_client)).get('data', {}).get('toma_reward', 0)
+                            if box_loot:
+                                logger.success(self.log_message(
+                                    f"Successfully opened invite box and got <ly>{box_loot}</ly> Toma"))
 
                     if settings.ONLY_CHECK_AIRDROP:
                         airdrop_data = (await self.check_airdrop(http_client,
@@ -774,7 +809,6 @@ class Tapper:
                                             log_error(self.log_message(
                                                 f"Failed to invest toma. Reason: {invest_toma.get('message', 'Unknown error')}"))
                                         await asyncio.sleep(uniform(1, 3))
-                            logger.info(self.log_message("No launchpad available..."))
 
                     await asyncio.sleep(uniform(2, 5))
 

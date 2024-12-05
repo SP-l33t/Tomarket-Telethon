@@ -105,7 +105,8 @@ class UniversalTelegramClient:
                 await self._telethon_initialize_webview_data(bot_username=bot_username, bot_shortname=bot_shortname)
                 await asyncio.sleep(uniform(1, 2))
 
-                start = {'start_param': settings.REF_ID if randint(0, 100) <= 85 and settings.REF_ID else default_val} if self.is_fist_run else {}
+                ref_id = settings.REF_ID if randint(0, 100) <= 85 and settings.REF_ID else default_val
+                start = {'start_param': f"r-{ref_id}--p-_treasure"} if self.is_fist_run else {}
 
                 web_view = await self.client(messages.RequestAppWebViewRequest(
                     **self._webview_data,
