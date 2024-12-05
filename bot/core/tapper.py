@@ -351,7 +351,7 @@ class Tapper:
                     token_balance = await self.get_token_balance(http_client, {'language_code': 'en', 'init_data': init_data})
                     logger.info(self.log_message(f"Current balance: <lr>{available_balance}</lr> | "
                                                  f"Current Rank: <lr>{current_rank}</lr> | "
-                                                 f"Token Balance: <ly>{int(token_balance.get('data', {}).get('total', 0))}</ly>"))
+                                                 f"Token Balance: <ly>{int(float(token_balance.get('data', {}).get('total', 0)))}</ly>"))
 
                     await self.query_treasure_box_balance(http_client, {'language_code': 'en', 'init_data': init_data})
                     await self.get_treasure_box_history(http_client, {'language_code': 'en', 'init_data': init_data})
@@ -771,8 +771,8 @@ class Tapper:
                                 else:
                                     can_claim = float(farms_hash.get(farm.get('id')).get('can_claim'))
                                     end_at = float(farms_hash.get(farm.get('id')).get('end_at'))
-                                    logger.info(
-                                        f"{self.session_name} | current_time: {current_time}s, launchpad_end_at: {end_at}s")
+                                    logger.info(self.log_message(
+                                        f"current_time: {current_time}s, launchpad_end_at: {end_at}s"))
                                     if current_time > end_at:
                                         await asyncio.sleep(uniform(1, 3))
                                         claim_auto_farm = await self.launchpad_claim_auto_farm(
