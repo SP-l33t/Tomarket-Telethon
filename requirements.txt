@@ -14,6 +14,7 @@ PySocks==1.7.1
 python-socks==2.5.1
 pytz
 Telethon==1.36.0
+tenacity==9.0.0
 tonsdk
 tzlocal==5.2
 ua_generator

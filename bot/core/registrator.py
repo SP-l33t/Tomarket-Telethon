@@ -38,9 +38,11 @@ async def register_sessions() -> None:
         )
     accounts_config = config_utils.read_config_file(CONFIG_PATH)
     accounts_data = {
-        'api_id': API_ID,
-        'api_hash': API_HASH,
-        **device_params
+        "api": {
+            'api_id': API_ID,
+            'api_hash': API_HASH,
+            **device_params
+        }
     }
     proxy = None
 
@@ -67,7 +69,6 @@ async def register_sessions() -> None:
         else:
             break
     if res == '1':
-        proxy = proxy_utils.to_telethon_proxy(proxy)
         session = TelegramClient(
             os.path.join(SESSIONS_PATH, session_file),
             api_id=API_ID,
@@ -76,15 +77,15 @@ async def register_sessions() -> None:
             system_lang_code="en-US",
             **device_params
         )
-        logger.info(f"Using proxy: {proxy}")
-        session.set_proxy(proxy)
+        if proxy:
+            logger.info(f"Using proxy: {proxy}")
+            session.set_proxy(proxy_utils.to_telethon_proxy(proxy))
 
         await session.start()
 
         user_data = await session.get_me()
 
     else:
-        proxy = proxy_utils.to_pyrogram_proxy(proxy)
         session = Client(
             os.path.join(SESSIONS_PATH, session_file),
             api_id=API_ID,
@@ -92,8 +93,9 @@ async def register_sessions() -> None:
             lang_code="en",
             **device_params
         )
-        logger.info(f"Using proxy: {proxy}")
-        session.proxy = proxy
+        if proxy:
+            logger.info(f"Using proxy: {proxy}")
+            session.proxy = proxy_utils.to_pyrogram_proxy(proxy)
 
         await session.start()
 

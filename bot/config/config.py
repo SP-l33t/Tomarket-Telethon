@@ -12,13 +12,19 @@ class Settings(BaseSettings):
 
     REF_ID: str = '0000GbQY'
     
-    POINTS_COUNT: list[int] = [400, 500]
+    POINTS_COUNT: list[int] = [380, 480]
     AUTO_PLAY_GAME: bool = True
+    GAMES_PER_CYCLE: list[int] = [10, 30]
     AUTO_TASK: bool = True
     AUTO_DAILY_REWARD: bool = True
     AUTO_CLAIM_STARS: bool = True
     AUTO_CLAIM_COMBO: bool = True
     AUTO_RANK_UPGRADE: bool = True
+    AUTO_AIRDROP_TASK: bool = True
+    AUTO_CLAIM_AIRDROP: bool = True
+    AUTO_LAUNCHPAD_AND_CLAIM: bool = True
+    AUTO_CONVERT_TOMA: bool = True
+    MIN_BALANCE_BEFORE_CONVERT: list[int] = [30000, 100000]
     PERFORM_WALLET_TASK: bool = False
     REPLACE_WALLET: bool = False
 
