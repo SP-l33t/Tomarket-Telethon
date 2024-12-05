@@ -351,7 +351,7 @@ class Tapper:
                     token_balance = await self.get_token_balance(http_client, {'language_code': 'en', 'init_data': init_data})
                     logger.info(self.log_message(f"Current balance: <lr>{available_balance}</lr> | "
                                                  f"Current Rank: <lr>{current_rank}</lr> | "
-                                                 f"Token Balance: <ly>{token_balance.get('data', {}).get('total', 0)}</ly>"))
+                                                 f"Token Balance: <ly>{int(token_balance.get('data', {}).get('total', 0))}</ly>"))
 
                     await self.query_treasure_box_balance(http_client, {'language_code': 'en', 'init_data': init_data})
                     await self.get_treasure_box_history(http_client, {'language_code': 'en', 'init_data': init_data})
