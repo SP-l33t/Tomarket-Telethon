@@ -43,7 +43,7 @@ class Tapper:
             logger.critical(self.log_message('CHECK accounts_config.json as it might be corrupted'))
             exit(-1)
 
-        self.headers = headers
+        self.headers = headers.copy()
         user_agent = session_config.get('user_agent')
         self.headers['user-agent'] = user_agent
         self.headers.update(**get_sec_ch_ua(user_agent))
@@ -217,7 +217,7 @@ class Tapper:
                 return json.loads(await resp.text()).get('puzzle', {})
 
     async def check_airdrop(self, http_client: CloudflareScraper, data):
-        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/token/check", json=data)
+        return {} or await self.make_request(http_client, "POST", f"{API_ENDPOINT}/token/check", json=data)
 
     async def add_tomato_to_first_name(self):
         if '🍅' not in self.user_data.get('first_name'):
@@ -297,6 +297,19 @@ class Tapper:
 
     async def open_treasure_box(self, http_client):
         return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/invite/openTreasureBox")
+
+    async def get_predeposit(self, http_client, data):
+        return (await self.make_request(http_client, "POST", f"{API_ENDPOINT}/token/preDeposit", json=data)).get('data', {})
+
+    async def update_predeposit(self, http_client, amount):
+        payload = {
+            "wallet_address": settings.CEX_ADDRESS,
+            "cex_name": settings.CEX,
+            "cex_uid": settings.CEX_UID,
+            "amount": amount,
+            "chain": "aptos"
+        }
+        return await self.make_request(http_client, "POST", f"{API_ENDPOINT}/token/preDepositUpdate", json=payload)
 
     async def run(self):
         random_delay = uniform(1, settings.SESSION_START_DELAY)
@@ -631,6 +644,8 @@ class Tapper:
                                                                  data={"language_code": "en", "init_data": init_data})
                             round_names = [item['round']['name'] for item in token_weeks.get('data', {}) if
                                            not item['claimed'] and item['stars'] > 0]
+                            if not airdrop_check.get('data', {}).get('claimed', True) and airdrop_check.get('data', {}).get('tomaAirDrop', {}).get('amount', ""):
+                                round_names.append("One")
                             logger.info(self.log_message(f"Effective claim round:{round_names}.")) if round_names else \
                                 logger.info(self.log_message("No Weekly airdrop available to claim."))
                             for round_name in round_names:
@@ -697,7 +712,7 @@ class Tapper:
                         farms = await self.launchpad_get_auto_farms(http_client=http_client, data={})
                         farms_hash = {}
                         if farms and farms.get('status', 500) == 0:
-                            farms_hash = {farm['launchpad_id']: farm for farm in farms.get('data', [])}
+                            farms_hash = {farm['launchpad_id']: farm for farm in farms.get('data', []) if farm.get('launchpad_id') != 8}
 
                         launchpad_list = await self.launchpad_list(http_client=http_client,
                                                                    data={"language_code": "en",
@@ -708,14 +723,15 @@ class Tapper:
                                 status = farm.get('status', 0)
                                 settleStatus = farm.get('settleStatus', 0)
 
+                                if farm.get('id') not in farms_hash:
+                                    continue
+
                                 if settleStatus == 1 and status == 2:
                                     can_claim = float(farms_hash.get(farm.get('id')).get('can_claim'))
                                     if can_claim > 0:
                                         claim_auto_farm = await self.launchpad_claim_auto_farm(
                                             http_client=http_client,
-                                            data={
-                                                'launchpad_id': farm.get(
-                                                    'id')})
+                                            data={'launchpad_id': farm.get('id')})
                                         if claim_auto_farm and claim_auto_farm.get('status', 500) == 0:
                                             logger.success(self.log_message("Claim auto farm successfully!"))
                                         else:
@@ -777,9 +793,7 @@ class Tapper:
                                         await asyncio.sleep(uniform(1, 3))
                                         claim_auto_farm = await self.launchpad_claim_auto_farm(
                                             http_client=http_client,
-                                            data={
-                                                'launchpad_id': farm.get(
-                                                    'id')})
+                                            data={'launchpad_id': farm.get('id')})
                                         if claim_auto_farm and claim_auto_farm.get('status', 500) == 0:
                                             logger.success(f"{self.session_name} | Claim auto farm successfully!")
                                             can_claim = 0
@@ -820,15 +834,14 @@ class Tapper:
                         check_toma_balance = int(float(check_toma.get('data', {}).get('balance', 0) if check_toma and check_toma.get('data', {}) else 0))
 
                         if check_toma and check_toma_status == 0:
-                            if check_toma_balance > 21000 and check_toma_balance >= randint(
-                                    settings.MIN_BALANCE_BEFORE_CONVERT[0], settings.MIN_BALANCE_BEFORE_CONVERT[1]):
+                            if check_toma_balance > 20000:
                                 logger.info(self.log_message(
                                     f"Available TOMA balance to convert: <lr>{check_toma_balance} 🍅</lr>"))
 
                                 convert_toma = await self.convert_toma(http_client=http_client)
                                 if convert_toma and convert_toma.get('status', 500) == 0 and \
                                         convert_toma.get('data', {}).get('success', False):
-                                    logger.success(f"{self.session_name} | Converted <lr>TOMA</lr> 🍅")
+                                    logger.success(self.log_message("Converted <lr>TOMA</lr> 🍅"))
                                 else:
                                     log_error(self.log_message(
                                         f"Failed to convert TOMA. Reason: {convert_toma.get('message', 'Unknown error')}"))
@@ -863,6 +876,26 @@ class Tapper:
                                                 f"Failed to claim weekly airdrop,Reason :{claim_weekly_airdrop.get('message', 'Unkown')}"))
                         else:
                             log_error(self.log_message(f"Failed to check TOMA balance. Reason: {check_toma_message}"))
+
+                    if settings.CEX_ADDRESS and settings.CEX:
+                        predep_info = await self.get_predeposit(http_client,
+                                                                data={"language_code": "en", "init_data": init_data})
+                        if not predep_info.get('cex', []):
+                            available_toma = predep_info.get("availableToma", 0)
+                            if available_toma:
+                                resp = await self.update_predeposit(http_client, available_toma)
+                                await asyncio.sleep(uniform(2, 5))
+                                if resp.get('status', -1) == 0:
+                                    predep_info = await self.get_predeposit(http_client,
+                                                                            data={"language_code": "en",
+                                                                                  "init_data": init_data})
+                                    if predep_info.get('cex', []):
+                                        logger.success(self.log_message(
+                                            f"Successfully started TOMA Cex withdrawal: {settings.CEX}"))
+                                else:
+                                    logger.warning(self.log_message(
+                                        f"Failed to TOMA Cex withdrawal: {settings.CEX}, UID: {settings.CEX_UID}, "
+                                        f"address: {settings.CEX_ADDRESS}. Response: {resp}"))
 
                     sleep_time = (end_farming_dt - time()) * uniform(1.0, 1.1)
                     logger.info(self.log_message(f'Sleep <lr>{round(sleep_time / 60, 2)}m.</lr>'))

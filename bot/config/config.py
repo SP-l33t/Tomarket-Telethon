@@ -24,9 +24,12 @@ class Settings(BaseSettings):
     AUTO_CLAIM_AIRDROP: bool = True
     AUTO_LAUNCHPAD_AND_CLAIM: bool = True
     AUTO_CONVERT_TOMA: bool = True
-    MIN_BALANCE_BEFORE_CONVERT: list[int] = [30000, 100000]
     PERFORM_WALLET_TASK: bool = False
     REPLACE_WALLET: bool = False
+
+    CEX: str = "Bitget"
+    CEX_UID: str = ""
+    CEX_ADDRESS: str = ""
 
     ONLY_CHECK_AIRDROP: bool = False
 
